@@ -53,11 +53,18 @@ Create an `mcporter generate-cli` command that produces a standalone CLI for a s
 ## Usage Examples
 
 ```bash
-# Shorthand flags emit TypeScript + optional minified bundle
-npx mcporter generate-cli   --name context7   --command https://mcp.context7.com/mcp   --minify
+# Minimal: infer the name from the command URL and emit TypeScript (optionally bundle)
+npx mcporter generate-cli \
+  --command https://mcp.context7.com/mcp \
+  --minify
 
-# Bun-friendly binary using --compile (requires Bun installed)
-npx mcporter generate-cli   --name context7   --command https://mcp.context7.com/mcp   --runtime bun   --compile
+# Provide explicit name/description and compile a Bun binary (falls back to Node if Bun missing)
+npx mcporter generate-cli \
+  --name context7 \
+  --command https://mcp.context7.com/mcp \
+  --description "Context7 docs MCP" \
+  --runtime bun \
+  --compile
 
 chmod +x context7
 ./context7 list-tools
