@@ -660,6 +660,14 @@ function renderToolCommand(tool: ToolMetadata, defaultTimeout: number): string {
 	const optionLines = tool.options
 		.map((option) => renderOption(option))
 		.join("\n");
+	const usageParts = tool.options.map((option) =>
+		option.required
+			? `--${option.cliName} <value>`
+			: `[--${option.cliName} <value>]`,
+	);
+	usageParts.push("[--raw <json>]");
+	const usageLine = usageParts.length ? usageParts.join(" ") : "";
+	const usageSnippet = usageLine ? `.usage(${JSON.stringify(usageLine)})\n` : "";
 	const buildArgs = tool.options
 		.map((option) => {
 			const source = `cmdOpts.${option.property}`;
@@ -669,7 +677,7 @@ function renderToolCommand(tool: ToolMetadata, defaultTimeout: number): string {
 	return `program
 	.command(${JSON.stringify(commandName)})
 	.description(${JSON.stringify(description)})
-	.option('--raw <json>', 'Provide raw JSON arguments to the tool, bypassing flag parsing.')
+${usageSnippet ? `\t${usageSnippet}` : ""}\t.option('--raw <json>', 'Provide raw JSON arguments to the tool, bypassing flag parsing.')
 ${optionLines ? `\n${optionLines}` : ""}
 	.action(async (cmdOpts) => {
 		const globalOptions = program.opts();
