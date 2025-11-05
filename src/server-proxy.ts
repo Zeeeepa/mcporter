@@ -167,7 +167,12 @@ export function createServerProxy(
 					}
 				}
 
-				const schema = await ensureMetadata(toolName);
+				let schema: unknown;
+				try {
+					schema = await ensureMetadata(toolName);
+				} catch {
+					schema = undefined;
+				}
 				if (schema) {
 					if (finalOptions.args !== undefined) {
 						finalOptions.args = applyDefaults(

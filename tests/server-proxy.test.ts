@@ -1,18 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CallResult } from "../src/index.js";
-import type { Runtime } from "../src/runtime";
+import type { Runtime, ServerToolInfo } from "../src/runtime";
 import { createServerProxy } from "../src/server-proxy";
 
-function createMockRuntime(toolSchemas: Record<string, unknown> = {}) {
+function createMockRuntime(
+	toolSchemas: Record<string, unknown> = {},
+	listToolsImpl?: () => Promise<ServerToolInfo[]>,
+) {
+	const listTools = listToolsImpl
+		? vi.fn(listToolsImpl)
+		: vi.fn(async () =>
+				Object.entries(toolSchemas).map(([name, schema]) => ({
+					name,
+					description: "",
+					inputSchema: schema,
+				})),
+			);
 	return {
 		callTool: vi.fn(async (_, __, options) => options),
-		listTools: vi.fn(async () =>
-			Object.entries(toolSchemas).map(([name, schema]) => ({
-				name,
-				description: "",
-				inputSchema: schema,
-			})),
-		),
+		listTools,
 	};
 }
 
@@ -108,5 +114,24 @@ describe("createServerProxy", () => {
 		const otherTool = proxy.otherTool as () => Promise<CallResult>;
 		await expect(otherTool()).rejects.toThrow("Missing required arguments");
 		expect(runtime.callTool).toHaveBeenCalledTimes(1);
+	});
+
+	it("continues when metadata fetch fails", async () => {
+		const runtime = createMockRuntime({}, () =>
+			Promise.reject(new Error("metadata failure")),
+		);
+
+		const proxy = createServerProxy(
+			runtime as unknown as Runtime,
+			"foo",
+		) as Record<string, unknown>;
+
+		const fn = proxy.someTool as (args: unknown) => Promise<CallResult>;
+		const result = await fn({ foo: "bar" });
+
+		expect(runtime.callTool).toHaveBeenCalledWith("foo", "some-tool", {
+			args: { foo: "bar" },
+		});
+		expect(result.raw).toEqual({ args: { foo: "bar" } });
 	});
 });
