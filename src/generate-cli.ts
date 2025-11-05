@@ -439,7 +439,10 @@ function renderTemplate({ runtimeKind, timeoutMs, definition, serverName, tools,
   const generatorHeaderLiteral = JSON.stringify(generatorHeader);
   const toolHelpLiteral = JSON.stringify(toolHelpLines);
   const embeddedSchemas = JSON.stringify(buildEmbeddedSchemaMap(tools), undefined, 2);
-  const toolBlocks = tools.map((tool) => renderToolCommand(tool, timeoutMs)).join('\n\n');
+  const renderedTools = tools.map((tool) => renderToolCommand(tool, timeoutMs));
+  const toolBlocks = renderedTools.map((entry) => entry.block).join('\n\n');
+  const signatureMap = Object.fromEntries(renderedTools.map((entry) => [entry.commandName, entry.signature]));
+  const signatureMapLiteral = JSON.stringify(signatureMap, undefined, 2);
   return `#!/usr/bin/env ${runtimeKind === 'bun' ? 'bun' : 'node'}
 ${imports}
 
@@ -455,6 +458,13 @@ program.option('-c, --config <path>', 'Alternate mcporter.json path to load serv
 program.option('-s, --server <name>', 'Alternate server name when using --config.');
 program.option('-t, --timeout <ms>', 'Call timeout in milliseconds', (value) => parseInt(value, 10), ${timeoutMs});
 program.option('-o, --output <format>', 'Output format: text|markdown|json|raw', 'text');
+const commandSignatures: Record<string, string> = ${signatureMapLiteral};
+program.configureHelp({
+	commandTerm(cmd) {
+		const term = cmd.name();
+		return commandSignatures[term] ?? cmd.name();
+	},
+});
 program.addHelpText('after', () => {
 	const sections: string[] = [];
 	if (generatorTools) {
@@ -571,7 +581,10 @@ function normalizeEmbeddedServer(server: typeof embeddedServer) {
 `;
 }
 
-function renderToolCommand(tool: ToolMetadata, defaultTimeout: number): string {
+function renderToolCommand(
+  tool: ToolMetadata,
+  defaultTimeout: number
+): { block: string; commandName: string; signature: string } {
   const commandName = tool.tool.name.replace(/[^a-zA-Z0-9-]/g, '-');
   const description = tool.tool.description ?? `Invoke the ${tool.tool.name} tool.`;
   const optionLines = tool.options.map((option) => renderOption(option)).join('\n');
@@ -587,31 +600,34 @@ function renderToolCommand(tool: ToolMetadata, defaultTimeout: number): string {
       return `if (${source} !== undefined) args.${option.property} = ${source};`;
     })
     .join('\n\t\t');
-  return `program
-	.command(${JSON.stringify(commandName)})
-	.description(${JSON.stringify(description)})
+  const signature = usageLine ? `${commandName} ${usageLine}` : commandName;
+  const block = `program
+\t.command(${JSON.stringify(commandName)})
+\t.summary(${JSON.stringify(signature)})
+\t.description(${JSON.stringify(description)})
 ${usageSnippet ? `\t${usageSnippet}` : ''}\t.option('--raw <json>', 'Provide raw JSON arguments to the tool, bypassing flag parsing.')
 ${optionLines ? `\n${optionLines}` : ''}
-	.action(async (cmdOpts) => {
-		const globalOptions = program.opts();
-		const { runtime, serverName, usingEmbedded } = await ensureRuntime({
-			config: globalOptions.config,
-			server: globalOptions.server,
-			timeout: globalOptions.timeout || ${defaultTimeout},
-		});
-		const proxy = createServerProxy(runtime, serverName, {
-			initialSchemas: usingEmbedded ? embeddedSchemas : undefined,
-		});
-		try {
-			const args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : ({} as Record<string, unknown>);
-			${buildArgs}
-			const call = (proxy.${tool.methodName} as any)(args);
-			const result = await invokeWithTimeout(call, globalOptions.timeout || ${defaultTimeout});
-			printResult(result, globalOptions.output ?? 'text');
-		} finally {
-			await runtime.close(serverName).catch(() => {});
-		}
-	});`;
+\t.action(async (cmdOpts) => {
+\t\tconst globalOptions = program.opts();
+\t\tconst { runtime, serverName, usingEmbedded } = await ensureRuntime({
+\t\t\tconfig: globalOptions.config,
+\t\t\tserver: globalOptions.server,
+\t\t\ttimeout: globalOptions.timeout || ${defaultTimeout},
+\t\t});
+\t\tconst proxy = createServerProxy(runtime, serverName, {
+\t\t\tinitialSchemas: usingEmbedded ? embeddedSchemas : undefined,
+\t\t});
+\t\ttry {
+\t\t\tconst args = cmdOpts.raw ? JSON.parse(cmdOpts.raw) : ({} as Record<string, unknown>);
+\t\t\t${buildArgs}
+\t\t\tconst call = (proxy.${tool.methodName} as any)(args);
+\t\t\tconst result = await invokeWithTimeout(call, globalOptions.timeout || ${defaultTimeout});
+\t\t\tprintResult(result, globalOptions.output ?? 'text');
+\t\t} finally {
+\t\t\tawait runtime.close(serverName).catch(() => {});
+\t\t}
+\t});`;
+  return { block, commandName, signature };
 }
 
 function renderOption(option: GeneratedOption): string {
