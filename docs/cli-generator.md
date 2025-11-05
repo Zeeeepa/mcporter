@@ -66,14 +66,15 @@ npx mcp-runtime generate-cli \
 # Bun-friendly binary using --compile (requires Bun installed)
 npx mcp-runtime generate-cli \
   --server '{"name":"context7","command":"https://mcp.context7.com/mcp"}' \
+  --output dist/context7.ts \
   --runtime bun \
-  --compile dist/context7-cli
+  --compile
 
-chmod +x dist/context7-cli
-CONTEXT7_API_KEY=sk-... ./dist/context7-cli list-tools
+chmod +x dist/context7
+CONTEXT7_API_KEY=sk-... ./dist/context7 list-tools
 
 - `--minify` shrinks the bundled output via esbuild.
-- `--compile [path]` implies bundling and invokes `bun build --compile` to create the native executable (Bun only).
+- `--compile [path]` implies bundling and invokes `bun build --compile` to create the native executable (Bun only). When you omit the path, the compiled binary inherits the server name.
 ```
 
 ## Status

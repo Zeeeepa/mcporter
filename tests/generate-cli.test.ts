@@ -99,7 +99,6 @@ describe("generateCli", () => {
 			});
 		});
 
-		const compilePathTarget = path.join(tmpDir, "integration-cli");
 		const {
 			outputPath: generated,
 			bundlePath: bundled,
@@ -110,7 +109,7 @@ describe("generateCli", () => {
 			runtime: "bun",
 			timeoutMs: 5_000,
 			minify: true,
-			compile: compilePathTarget,
+			compile: true,
 		});
 		const expectedBundlePath = path.join(tmpDir, "integration-cli.js");
 		if (!bundled) {
@@ -120,6 +119,8 @@ describe("generateCli", () => {
 		if (!compilePath) {
 			throw new Error("Expected compile output when --compile is provided");
 		}
+		const expectedBinaryPath = path.join(tmpDir, "integration");
+		expect(compilePath).toBe(expectedBinaryPath);
 
 		const tsContent = await fs.readFile(generated, "utf8");
 		expect(tsContent).toContain("Standalone CLI generated for the ");

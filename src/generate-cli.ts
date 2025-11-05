@@ -91,7 +91,11 @@ export async function generateCli(
 			if (runtimeKind !== "bun") {
 				throw new Error("--compile is only supported when --runtime bun");
 			}
-			const compileTarget = computeCompileTarget(options.compile, bundlePath);
+			const compileTarget = computeCompileTarget(
+				options.compile,
+				bundlePath,
+				name,
+			);
 			await compileBundleWithBun(bundlePath, compileTarget);
 			compilePath = compileTarget;
 		}
@@ -808,12 +812,18 @@ function resolveBundleTarget({
 }
 
 // computeCompileTarget picks the final binary output location, defaulting to the bundle basename.
+
 function computeCompileTarget(
 	compileOption: GenerateCliOptions["compile"],
 	bundlePath: string,
+	serverName: string,
 ): string {
 	if (typeof compileOption === "string") {
 		return compileOption;
+	}
+	const bundleDir = path.dirname(bundlePath);
+	if (serverName) {
+		return path.join(bundleDir, serverName);
 	}
 	const parsed = path.parse(bundlePath);
 	return path.join(parsed.dir, parsed.name);
