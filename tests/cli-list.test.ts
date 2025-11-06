@@ -365,6 +365,88 @@ describe('CLI list classification', () => {
     logSpy.mockRestore();
   });
 
+  it('matches the expected formatted snapshot for a complex server', async () => {
+    const { handleList } = await cliModulePromise;
+    const listToolsSpy = vi.fn((_name: string, options?: { includeSchema?: boolean }) =>
+      Promise.resolve([
+        buildLinearDocumentsTool(options?.includeSchema),
+        {
+          name: 'create_comment',
+          description: 'Create a comment on a specific Linear issue',
+          inputSchema: options?.includeSchema
+            ? {
+                type: 'object',
+                properties: {
+                  issueId: { type: 'string', description: 'The issue ID' },
+                  parentId: { type: 'string', description: 'Optional parent comment ID' },
+                  body: { type: 'string', description: 'Comment body as Markdown' },
+                },
+                required: ['issueId', 'body'],
+              }
+            : undefined,
+          outputSchema: options?.includeSchema
+            ? {
+                title: 'Comment',
+                type: 'object',
+              }
+            : undefined,
+        },
+      ])
+    );
+    const runtime = {
+      getDefinition: () => linearDefinition,
+      listTools: listToolsSpy,
+    } as unknown as Awaited<ReturnType<typeof import('../src/runtime.js')['createRuntime']>>;
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+
+    await handleList(runtime, ['linear']);
+
+    nowSpy.mockRestore();
+
+    const lines = logSpy.mock.calls.map((call) => stripAnsi(call.join(' ')));
+    expect(lines.join('\n')).toMatchInlineSnapshot(`
+      "linear - Hosted Linear MCP
+
+        /**
+         * List documents in the user's Linear workspace
+         *
+         * @param query The search query
+         * @param limit? Maximum number of documents to return
+         * @param before? Cursor to page backwards
+         * @param after? Cursor to page forwards
+         * @param orderBy? Sort order for the documents
+         * @param projectId? Filter by project
+         * @param initiativeId? Filter by initiative
+         * @param creatorId? Filter by creator
+         * @param includeArchived? Whether to include archived documents
+         */
+        function list_documents(query: string, limit?: number, before?: string, after?: string, orderBy?: "createdAt" | "updatedAt"): DocumentConnection;
+        // optional (4): projectId, initiativeId, creatorId, includeArchived
+
+        /**
+         * Create a comment on a specific Linear issue
+         *
+         * @param issueId The issue ID
+         * @param parentId? Optional parent comment ID
+         * @param body Comment body as Markdown
+         */
+        function create_comment(issueId: string, parentId?: string, body: string): Comment;
+
+        Examples:
+          mcporter call linear.list_documents(query: "value", limit: 1, orderBy: "createdAt")
+          mcporter call linear.create_comment(issueId: "example-id", parentId: "example-id", body: "value")
+
+        Optional parameters hidden; run with --all-parameters to view all fields.
+
+        2 tools · 0ms · HTTP https://example.com/mcp
+      "
+    `);
+
+    logSpy.mockRestore();
+  });
+
   it('registers an ad-hoc HTTP server when URL is provided', async () => {
     const { handleList } = await cliModulePromise;
     const definitions = new Map<string, ServerDefinition>();
