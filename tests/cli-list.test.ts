@@ -13,6 +13,14 @@ describe('CLI list timeout handling', () => {
     expect(args).toEqual(['server']);
   });
 
+  it('parses --required-only flag and removes it from args', async () => {
+    const { extractListFlags } = await cliModulePromise;
+    const args = ['--required-only', '--schema', 'server'];
+    const flags = extractListFlags(args);
+    expect(flags).toEqual({ schema: true, timeoutMs: undefined, requiredOnly: true });
+    expect(args).toEqual(['server']);
+  });
+
   it('honors --timeout when listing a single server', async () => {
     const { handleList } = await cliModulePromise;
     const definition: ServerDefinition = {
