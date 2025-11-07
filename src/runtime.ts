@@ -3,7 +3,6 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -12,6 +11,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { CallToolRequest, ListResourcesRequest } from '@modelcontextprotocol/sdk/types.js';
 import { loadServerDefinitions, type ServerDefinition } from './config.js';
 import { resolveEnvPlaceholders, resolveEnvValue, withEnvOverrides } from './env.js';
+import { analyzeConnectionError } from './error-classifier.js';
 import { createPrefixedConsoleLogger, type Logger, type LogLevel, resolveLogLevelFromEnv } from './logging.js';
 import { createOAuthSession, type OAuthSession } from './oauth.js';
 import './sdk-patches.js';
@@ -434,15 +434,8 @@ export const __test = {
 };
 
 function isUnauthorizedError(error: unknown): boolean {
-  if (error instanceof UnauthorizedError) {
-    return true;
-  }
-  const message =
-    error instanceof Error ? error.message : typeof error === 'string' ? error : error ? JSON.stringify(error) : '';
-  if (!message) {
-    return false;
-  }
-  return /\b(401|403)\b/i.test(message) || /unauthorized|invalid[_-]?token|forbidden/i.test(message);
+  const issue = analyzeConnectionError(error);
+  return issue.kind === 'auth';
 }
 
 // closeTransportAndWait closes the transport and ensures its backing process exits.

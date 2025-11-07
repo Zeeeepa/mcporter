@@ -1,16 +1,16 @@
 import ora from 'ora';
 import type { ServerDefinition } from '../config.js';
-import { type EphemeralServerSpec, persistEphemeralServer, resolveEphemeralServer } from './adhoc-server.js';
+import type { EphemeralServerSpec } from './adhoc-server.js';
 import { extractEphemeralServerFlags } from './ephemeral-flags.js';
+import { prepareEphemeralServerTarget } from './ephemeral-target.js';
 import type { ToolMetadata } from './generate/tools.js';
-import { normalizeHttpUrlCandidate, splitHttpToolSelector } from './http-utils.js';
-import { chooseClosestIdentifier } from './identifier-helpers.js';
+import { splitHttpToolSelector } from './http-utils.js';
+import { chooseClosestIdentifier, renderIdentifierResolutionMessages } from './identifier-helpers.js';
 import { buildToolDoc, formatExampleBlock } from './list-detail-helpers.js';
 import type { ListSummaryResult, StatusCategory } from './list-format.js';
 import { classifyListError, formatSourceSuffix, renderServerListRow } from './list-format.js';
-import { findServerByHttpUrl } from './server-lookup.js';
 import { boldText, dimText, extraDimText, supportsSpinner, yellowText } from './terminal.js';
-import { LIST_TIMEOUT_MS, withTimeout } from './timeouts.js';
+import { consumeTimeoutFlag, LIST_TIMEOUT_MS, withTimeout } from './timeouts.js';
 import { loadToolMetadata } from './tool-cache.js';
 
 export function extractListFlags(args: string[]): {
@@ -41,16 +41,7 @@ export function extractListFlags(args: string[]): {
       continue;
     }
     if (token === '--timeout') {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error("Flag '--timeout' requires a value.");
-      }
-      const parsed = Number.parseInt(value, 10);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        throw new Error('--timeout must be a positive integer (milliseconds).');
-      }
-      timeoutMs = parsed;
-      args.splice(index, 2);
+      timeoutMs = consumeTimeoutFlag(args, index, { flagName: '--timeout' });
       continue;
     }
     index += 1;
@@ -64,7 +55,6 @@ export async function handleList(
 ): Promise<void> {
   const flags = extractListFlags(args);
   let target = args.shift();
-  let ephemeralResolution: ReturnType<typeof resolveEphemeralServer> | undefined;
 
   if (target) {
     const split = splitHttpToolSelector(target);
@@ -73,39 +63,12 @@ export async function handleList(
     }
   }
 
-  if (target) {
-    const normalizedTarget = normalizeHttpUrlCandidate(target);
-    if (normalizedTarget) {
-      const reused = findServerByHttpUrl(runtime.getDefinitions(), normalizedTarget);
-      if (reused) {
-        target = reused;
-      } else {
-        if (!flags.ephemeral) {
-          flags.ephemeral = { httpUrl: normalizedTarget };
-        } else if (!flags.ephemeral.httpUrl) {
-          flags.ephemeral.httpUrl = normalizedTarget;
-        }
-        target = undefined;
-      }
-    }
-  }
-
-  if (flags.ephemeral?.httpUrl) {
-    const normalizedEphemeralUrl = normalizeHttpUrlCandidate(flags.ephemeral.httpUrl);
-    if (normalizedEphemeralUrl) {
-      flags.ephemeral.httpUrl = normalizedEphemeralUrl;
-    }
-  }
-  if (flags.ephemeral) {
-    ephemeralResolution = resolveEphemeralServer(flags.ephemeral);
-    runtime.registerDefinition(ephemeralResolution.definition, { overwrite: true });
-    if (flags.ephemeral.persistPath) {
-      await persistEphemeralServer(ephemeralResolution, flags.ephemeral.persistPath);
-    }
-    if (!target) {
-      target = ephemeralResolution.name;
-    }
-  }
+  const prepared = await prepareEphemeralServerTarget({
+    runtime,
+    target,
+    ephemeral: flags.ephemeral,
+  });
+  target = prepared.target;
 
   if (!target) {
     const servers = runtime.getDefinitions();
@@ -398,11 +361,18 @@ function resolveServerDefinition(
       console.error(error.message);
       return undefined;
     }
-    if (suggestion.kind === 'auto') {
-      console.log(dimText(`[mcporter] Auto-corrected server name to ${suggestion.value} (input: ${name}).`));
+    const messages = renderIdentifierResolutionMessages({
+      entity: 'server',
+      attempted: name,
+      resolution: suggestion,
+    });
+    if (suggestion.kind === 'auto' && messages.auto) {
+      console.log(dimText(messages.auto));
       return resolveServerDefinition(runtime, suggestion.value);
     }
-    console.error(yellowText(`[mcporter] Did you mean ${suggestion.value}?`));
+    if (messages.suggest) {
+      console.error(yellowText(messages.suggest));
+    }
     console.error(error.message);
     return undefined;
   }

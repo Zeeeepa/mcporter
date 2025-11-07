@@ -46,6 +46,34 @@ export function normalizeIdentifier(value: string): string {
   return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
+export interface IdentifierResolutionContext {
+  entity: 'server' | 'tool';
+  attempted: string;
+  resolution: IdentifierResolution;
+  scope?: string;
+}
+
+export function renderIdentifierResolutionMessages(context: IdentifierResolutionContext): {
+  auto?: string;
+  suggest?: string;
+} {
+  const resolvedDisplay =
+    context.entity === 'tool' && context.scope
+      ? `${context.scope}.${context.resolution.value}`
+      : context.resolution.value;
+  const attemptedDisplay =
+    context.entity === 'tool' && context.scope ? `${context.scope}.${context.attempted}` : context.attempted;
+  if (context.resolution.kind === 'auto') {
+    const noun = context.entity === 'tool' ? 'tool call' : 'server name';
+    return {
+      auto: `[mcporter] Auto-corrected ${noun} to ${resolvedDisplay} (input: ${attemptedDisplay}).`,
+    };
+  }
+  return {
+    suggest: `[mcporter] Did you mean ${resolvedDisplay}?`,
+  };
+}
+
 function levenshtein(a: string, b: string): number {
   if (a === b) {
     return 0;

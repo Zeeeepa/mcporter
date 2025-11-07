@@ -1,17 +1,21 @@
 import { wrapCallResult } from '../result-utils.js';
-import type { ServerToolInfo } from '../runtime.js';
-import { type EphemeralServerSpec, persistEphemeralServer, resolveEphemeralServer } from './adhoc-server.js';
+import type { EphemeralServerSpec } from './adhoc-server.js';
 import { parseCallExpressionFragment } from './call-expression-parser.js';
 import { extractEphemeralServerFlags } from './ephemeral-flags.js';
+import { prepareEphemeralServerTarget } from './ephemeral-target.js';
 import { CliUsageError } from './errors.js';
-import { extractOptions } from './generate/tools.js';
 import { looksLikeHttpUrl, normalizeHttpUrlCandidate, splitHttpToolSelector } from './http-utils.js';
-import { chooseClosestIdentifier, normalizeIdentifier } from './identifier-helpers.js';
+import type { IdentifierResolution } from './identifier-helpers.js';
+import {
+  chooseClosestIdentifier,
+  normalizeIdentifier,
+  renderIdentifierResolutionMessages,
+} from './identifier-helpers.js';
 import { type OutputFormat, printCallOutput, tailLogIfRequested } from './output-utils.js';
 import { dumpActiveHandles } from './runtime-debug.js';
-import { findServerByHttpUrl } from './server-lookup.js';
 import { dimText } from './terminal.js';
-import { resolveCallTimeout, withTimeout } from './timeouts.js';
+import { consumeTimeoutFlag, resolveCallTimeout, withTimeout } from './timeouts.js';
+import { loadToolMetadata } from './tool-cache.js';
 
 interface CallArgsParseResult {
   selector?: string;
@@ -61,16 +65,10 @@ export function parseCallArguments(args: string[]): CallArgsParseResult {
       continue;
     }
     if (token === '--timeout') {
-      const value = args[index + 1];
-      if (!value) {
-        throw new Error('--timeout requires a value (milliseconds).');
-      }
-      const parsed = Number.parseInt(value, 10);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        throw new Error('--timeout must be a positive integer (milliseconds).');
-      }
-      result.timeoutMs = parsed;
-      index += 2;
+      result.timeoutMs = consumeTimeoutFlag(args, index, {
+        flagName: '--timeout',
+        missingValueMessage: '--timeout requires a value (milliseconds).',
+      });
       continue;
     }
     if (token === '--tail-log') {
@@ -242,72 +240,54 @@ export async function handleCall(
   args: string[]
 ): Promise<void> {
   const parsed = parseCallArguments(args);
-  let ephemeralSpec = parsed.ephemeral;
-  if (parsed.server) {
-    const normalizedServerUrl = normalizeHttpUrlCandidate(parsed.server);
-    if (normalizedServerUrl) {
-      if (!ephemeralSpec) {
-        ephemeralSpec = { httpUrl: normalizedServerUrl };
-      } else if (!ephemeralSpec.httpUrl) {
-        ephemeralSpec = { ...ephemeralSpec, httpUrl: normalizedServerUrl };
-      }
-      parsed.server = undefined;
+  let ephemeralSpec = parsed.ephemeral ? { ...parsed.ephemeral } : undefined;
+
+  const nameHints: string[] = [];
+  const absorbUrlCandidate = (value: string | undefined): string | undefined => {
+    if (!value) {
+      return value;
     }
-  }
-  if (parsed.selector) {
-    const normalizedSelectorUrl = normalizeHttpUrlCandidate(parsed.selector);
-    if (normalizedSelectorUrl) {
-      if (!ephemeralSpec) {
-        ephemeralSpec = { httpUrl: normalizedSelectorUrl };
-      } else if (!ephemeralSpec.httpUrl) {
-        ephemeralSpec = { ...ephemeralSpec, httpUrl: normalizedSelectorUrl };
-      }
-      parsed.selector = undefined;
+    const normalized = normalizeHttpUrlCandidate(value);
+    if (!normalized) {
+      return value;
     }
-  }
+    if (!ephemeralSpec) {
+      ephemeralSpec = { httpUrl: normalized };
+    } else if (!ephemeralSpec.httpUrl) {
+      ephemeralSpec = { ...ephemeralSpec, httpUrl: normalized };
+    }
+    return undefined;
+  };
+
+  parsed.server = absorbUrlCandidate(parsed.server);
+  parsed.selector = absorbUrlCandidate(parsed.selector);
+
   if (ephemeralSpec && parsed.server && !looksLikeHttpUrl(parsed.server)) {
-    ephemeralSpec = { ...ephemeralSpec, name: ephemeralSpec.name ?? parsed.server };
+    nameHints.push(parsed.server);
     parsed.server = undefined;
   }
 
   if (ephemeralSpec?.httpUrl && !ephemeralSpec.name && parsed.tool) {
-    // Keep derived name stable when the user invoked <url>.<tool> by hinting the server segment from selector.
     const candidate = parsed.selector && !looksLikeHttpUrl(parsed.selector) ? parsed.selector : undefined;
     if (candidate) {
-      ephemeralSpec = { ...ephemeralSpec, name: candidate };
+      nameHints.push(candidate);
       parsed.selector = undefined;
     }
   }
 
-  if (ephemeralSpec?.httpUrl) {
-    const reused = findServerByHttpUrl(runtime.getDefinitions(), ephemeralSpec.httpUrl);
-    if (reused) {
-      parsed.server = reused;
-      if (!parsed.selector) {
-        parsed.selector = reused;
-      }
-      ephemeralSpec = undefined;
-    }
+  const prepared = await prepareEphemeralServerTarget({
+    runtime,
+    target: parsed.server,
+    ephemeral: ephemeralSpec,
+    nameHints,
+    reuseFromSpec: true,
+  });
+
+  parsed.server = prepared.target;
+  if (!parsed.selector) {
+    parsed.selector = prepared.target;
   }
 
-  let ephemeralResolution: ReturnType<typeof resolveEphemeralServer> | undefined;
-  if (ephemeralSpec?.httpUrl) {
-    const normalizedEphemeralUrl = normalizeHttpUrlCandidate(ephemeralSpec.httpUrl);
-    if (normalizedEphemeralUrl) {
-      ephemeralSpec = { ...ephemeralSpec, httpUrl: normalizedEphemeralUrl };
-    }
-  }
-  if (ephemeralSpec) {
-    ephemeralResolution = resolveEphemeralServer(ephemeralSpec);
-    runtime.registerDefinition(ephemeralResolution.definition, { overwrite: true });
-    if (ephemeralSpec.persistPath) {
-      await persistEphemeralServer(ephemeralResolution, ephemeralSpec.persistPath);
-    }
-    parsed.server = ephemeralResolution.name;
-    if (!parsed.selector) {
-      parsed.selector = ephemeralResolution.name;
-    }
-  }
   const { server, tool } = resolveCallTarget(parsed);
 
   const timeoutMs = resolveCallTimeout(parsed.timeoutMs);
@@ -408,20 +388,20 @@ async function hydratePositionalArguments(
   }
   // We need the schema order to know which field each positional argument maps to; pull the
   // tool list with schemas instead of guessing locally so optional/required order stays correct.
-  const tools = await runtime.listTools(server, { includeSchema: true }).catch(() => undefined);
+  const tools = await loadToolMetadata(runtime, server, { includeSchema: true }).catch(() => undefined);
   if (!tools) {
     throw new Error('Unable to load tool metadata; name positional arguments explicitly.');
   }
-  const toolInfo = tools.find((entry) => entry.name === tool);
+  const toolInfo = tools.find((entry) => entry.tool.name === tool);
   if (!toolInfo) {
     throw new Error(
       `Unknown tool '${tool}' on server '${server}'. Double-check the name or run mcporter list ${server}.`
     );
   }
-  if (!toolInfo.inputSchema) {
+  if (!toolInfo.tool.inputSchema) {
     throw new Error(`Tool '${tool}' does not expose an input schema; name positional arguments explicitly.`);
   }
-  const options = extractOptions(toolInfo as ServerToolInfo);
+  const options = toolInfo.options;
   if (options.length === 0) {
     throw new Error(`Tool '${tool}' has no declared parameters; remove positional arguments.`);
   }
@@ -444,7 +424,7 @@ async function hydratePositionalArguments(
   return hydrated;
 }
 
-type ToolResolution = { kind: 'auto-correct'; tool: string } | { kind: 'suggest'; tool: string };
+type ToolResolution = IdentifierResolution;
 
 async function invokeWithAutoCorrection(
   runtime: Awaited<ReturnType<typeof import('../runtime.js')['createRuntime']>>,
@@ -486,15 +466,22 @@ async function attemptCall(
       throw error;
     }
 
+    const messages = renderIdentifierResolutionMessages({
+      entity: 'tool',
+      attempted: tool,
+      resolution,
+      scope: server,
+    });
     if (resolution.kind === 'suggest') {
-      // Provide a hint without mutating the call; this keeps surprising edits out of the request while teaching the right name.
-      console.error(dimText(`[mcporter] Did you mean ${server}.${resolution.tool}?`));
+      if (messages.suggest) {
+        console.error(dimText(messages.suggest));
+      }
       throw error;
     }
-
-    // Let the user know we silently retried with the canonical tool so they learn the proper name for next time.
-    console.log(dimText(`[mcporter] Auto-corrected tool call to ${server}.${resolution.tool} (input: ${tool}).`));
-    return attemptCall(runtime, server, resolution.tool, args, timeoutMs, false);
+    if (messages.auto) {
+      console.log(dimText(messages.auto));
+    }
+    return attemptCall(runtime, server, resolution.value, args, timeoutMs, false);
   }
 }
 
@@ -514,22 +501,19 @@ async function maybeResolveToolName(
     return undefined;
   }
 
-  const tools = await runtime.listTools(server).catch(() => undefined);
+  const tools = await loadToolMetadata(runtime, server, { includeSchema: false }).catch(() => undefined);
   if (!tools) {
     return undefined;
   }
 
   const resolution = chooseClosestIdentifier(
     attemptedTool,
-    tools.map((entry) => entry.name)
+    tools.map((entry) => entry.tool.name)
   );
   if (!resolution) {
     return undefined;
   }
-  if (resolution.kind === 'auto') {
-    return { kind: 'auto-correct', tool: resolution.value };
-  }
-  return { kind: 'suggest', tool: resolution.value };
+  return resolution;
 }
 
 function extractMissingToolFromError(error: unknown): string | undefined {

@@ -46,3 +46,22 @@ export function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
     );
   });
 }
+
+export function consumeTimeoutFlag(
+  args: string[],
+  index: number,
+  options?: { flagName?: string; missingValueMessage?: string }
+): number {
+  const flagName = options?.flagName ?? '--timeout';
+  const missingValueMessage = options?.missingValueMessage ?? `Flag '${flagName}' requires a value.`;
+  const value = args[index + 1];
+  if (!value) {
+    throw new Error(missingValueMessage);
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${flagName} must be a positive integer (milliseconds).`);
+  }
+  args.splice(index, 2);
+  return parsed;
+}

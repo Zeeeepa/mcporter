@@ -1,6 +1,6 @@
 import type { ServerDefinition } from '../config.js';
 import { looksLikeHttpUrl, splitHttpToolSelector } from './http-utils.js';
-import { chooseClosestIdentifier } from './identifier-helpers.js';
+import { chooseClosestIdentifier, renderIdentifierResolutionMessages } from './identifier-helpers.js';
 import { dimText, yellowText } from './terminal.js';
 
 type CommandResult = { kind: 'command'; command: string; args: string[] } | { kind: 'abort'; exitCode: number };
@@ -46,12 +46,20 @@ export function inferCommandRouting(
     return { kind: 'command', command: token, args };
   }
 
-  if (resolution.kind === 'auto') {
-    console.log(dimText(`[mcporter] Auto-corrected server name to ${resolution.value} (input: ${token}).`));
+  const messages = renderIdentifierResolutionMessages({
+    entity: 'server',
+    attempted: token,
+    resolution,
+  });
+
+  if (resolution.kind === 'auto' && messages.auto) {
+    console.log(dimText(messages.auto));
     return { kind: 'command', command: 'list', args: [resolution.value, ...args] };
   }
 
-  console.error(yellowText(`[mcporter] Did you mean ${resolution.value}?`));
+  if (messages.suggest) {
+    console.error(yellowText(messages.suggest));
+  }
   console.error(`Unknown MCP server '${token}'.`);
   return { kind: 'abort', exitCode: 1 };
 }

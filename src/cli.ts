@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
-import { type EphemeralServerSpec, persistEphemeralServer, resolveEphemeralServer } from './cli/adhoc-server.js';
+import type { EphemeralServerSpec } from './cli/adhoc-server.js';
 import { handleCall as runHandleCall } from './cli/call-command.js';
 import { inferCommandRouting } from './cli/command-inference.js';
 import { handleEmitTs } from './cli/emit-ts-command.js';
 import { extractEphemeralServerFlags } from './cli/ephemeral-flags.js';
+import { prepareEphemeralServerTarget } from './cli/ephemeral-target.js';
 import { CliUsageError } from './cli/errors.js';
 import { extractGeneratorFlags } from './cli/generate/flag-parser.js';
 import { extractHttpServerTarget, looksLikeHttpUrl, normalizeHttpUrlCandidate } from './cli/http-utils.js';
@@ -13,9 +14,9 @@ import { formatSourceSuffix } from './cli/list-format.js';
 import { getActiveLogger, getActiveLogLevel, logError, logInfo, logWarn, setLogLevel } from './cli/logger-context.js';
 import { formatPathForDisplay } from './cli/path-utils.js';
 import { DEBUG_HANG, dumpActiveHandles, terminateChildProcesses } from './cli/runtime-debug.js';
-import { findServerByHttpUrl } from './cli/server-lookup.js';
 import type { CliArtifactMetadata, SerializedServerDefinition } from './cli-metadata.js';
 import { readCliMetadata } from './cli-metadata.js';
+import { analyzeConnectionError } from './error-classifier.js';
 import type { GenerateCliOptions } from './generate-cli.js';
 import { generateCli } from './generate-cli.js';
 import { parseLogLevel } from './logging.js';
@@ -683,36 +684,21 @@ export async function handleAuth(runtime: Awaited<ReturnType<typeof createRuntim
   if (shouldReset) {
     args.splice(resetIndex, 1);
   }
-  let ephemeralSpec: EphemeralServerSpec | undefined = extractEphemeralServerFlags(args);
+  const ephemeralSpec: EphemeralServerSpec | undefined = extractEphemeralServerFlags(args);
   let target = args.shift();
-  if (target) {
-    const normalizedTarget = normalizeHttpUrlCandidate(target);
-    if (normalizedTarget) {
-      const reused = findServerByHttpUrl(runtime.getDefinitions(), normalizedTarget);
-      if (reused) {
-        target = reused;
-      } else if (!ephemeralSpec) {
-        ephemeralSpec = { httpUrl: normalizedTarget };
-        target = undefined;
-      }
-    }
-  }
-
+  const nameHints: string[] = [];
   if (ephemeralSpec && target && !looksLikeHttpUrl(target)) {
-    ephemeralSpec = { ...ephemeralSpec, name: ephemeralSpec.name ?? target };
+    nameHints.push(target);
   }
 
-  let ephemeralResolution: ReturnType<typeof resolveEphemeralServer> | undefined;
-  if (ephemeralSpec) {
-    ephemeralResolution = resolveEphemeralServer(ephemeralSpec);
-    runtime.registerDefinition(ephemeralResolution.definition, { overwrite: true });
-    if (ephemeralSpec.persistPath) {
-      await persistEphemeralServer(ephemeralResolution, ephemeralSpec.persistPath);
-    }
-    if (!target) {
-      target = ephemeralResolution.name;
-    }
-  }
+  const prepared = await prepareEphemeralServerTarget({
+    runtime,
+    target,
+    ephemeral: ephemeralSpec,
+    nameHints,
+    reuseFromSpec: true,
+  });
+  target = prepared.target;
 
   if (!target) {
     throw new Error('Usage: mcporter auth <server | url> [--http-url <url> | --stdio <command>]');
@@ -750,9 +736,5 @@ export async function handleAuth(runtime: Awaited<ReturnType<typeof createRuntim
 }
 
 function shouldRetryAuthError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  if (!message) {
-    return false;
-  }
-  return /unauthorized|invalid[_-]?token|\b(401|403)\b/i.test(message);
+  return analyzeConnectionError(error).kind === 'auth';
 }
