@@ -1,6 +1,6 @@
 # CLI Generator Plan
 
-Default behavior: generating `<server>.ts` in the working directory if no output path is provided. Bundling is opt-in via `--bundle` and produces a single JS file with shebang; otherwise we emit TypeScript targeting Node.js.
+Default behavior: generating `<server>.ts` in the working directory if no output path is provided. Bundling is opt-in via `--bundle` and produces a single JS file with shebang; otherwise we emit TypeScript targeting Node.js. Rolldown handles bundling by default, while `--bundler bun` switches to Bun’s native bundler (requires `--runtime bun`).
 
 ## Goal
 Create an `mcporter generate-cli` command that produces a standalone CLI for a single MCP server. The generated CLI should feel like a Unix tool: subcommands map to MCP tools, arguments translate to schema fields, and output can be piped/redirected easily.
@@ -17,7 +17,7 @@ Create an `mcporter generate-cli` command that produces a standalone CLI for a s
 ## Steps
 1. **Command Scaffolding**
    - Add `generate-cli` subcommand to the existing CLI.
-   - Parse flags: `--server`, `--name`, `--command`, optional `--description`, plus `--output`, `--runtime=node|bun`, `--bundle`, `--minify`, `--compile`, etc.
+   - Parse flags: `--server`, `--name`, `--command`, optional `--description`, plus `--output`, `--runtime=node|bun`, `--bundle`, `--bundler=rolldown|bun`, `--minify`, `--compile`, etc.
 2. **Server Resolution**
    - If `--server` matches a configured name (via `loadServerDefinitions`), use that server definition.
    - Otherwise, if the value looks like a file path, load a Cursor-style JSON definition from disk.
@@ -35,8 +35,8 @@ Create an `mcporter generate-cli` command that produces a standalone CLI for a s
      - Adds output-format handling.
    - Include `package.json` scaffolding if `--bundle` or `--package` is set.
 5. **Optional Bundling**
-   - If requested, run esbuild to emit a single JS file with shebang (Node or Bun), with optional minification.
-   - When targeting Bun, allow `--compile` to delegate to `bun build --compile` and generate a self-contained binary.
+   - If requested, run Rolldown (default) or Bun’s bundler (when `--bundler bun` is passed) to emit a single JS file with shebang (Node or Bun), with optional minification.
+   - When targeting Bun, allow `--compile` to delegate to `bun build --compile` and generate a self-contained binary. Bun bundling requires staging the template inside the package tree so dependencies resolve even when invoked from empty directories.
    - Otherwise, leave as TypeScript/ESM and document how to run (`node path/to/cli.js` or `bun path/to/cli.ts`).
 6. **Testing**
    - Add generator unit tests (snapshot the emitted CLI for known schemas).
@@ -73,7 +73,7 @@ chmod +x context7
 # Shareable "one weird trick" for chrome-devtools (no config required)
 npx mcporter generate-cli --command "npx -y chrome-devtools-mcp@latest"
 
-- `--minify` shrinks the bundled output via esbuild (output defaults to `<server>.js`).
+- `--minify` shrinks the bundled output via the selected bundler (output defaults to `<server>.js`).
 - `--compile [path]` implies bundling and invokes `bun build --compile` to create the native executable (Bun only). When you omit the path, the compiled binary inherits the server name.
 - Use `--server '{...}'` when you need advanced configuration (headers, env vars, stdio commands, OAuth metadata).
 - Omit `--name` to let mcporter infer it from the command URL (for example, `https://mcp.context7.com/mcp` becomes `context7`).
@@ -96,7 +96,7 @@ npx mcporter generate-cli --command "npx -y chrome-devtools-mcp@latest"
 ## Status
 - ✅ `generate-cli` subcommand implemented with schema-aware proxy generation.
 - ✅ Inline JSON / file / shorthand server resolution wired up.
-- ✅ Bundling via esbuild (Node or Bun) with optional minification and Bun bytecode compilation.
+- ✅ Bundling via Rolldown by default (or Bun when `--bundler bun` is set) with optional minification and Bun bytecode compilation.
 - ✅ Integration tests cover bundling, minification, compiled binaries, and metadata/regeneration flows against the mock MCP server.
 
 Next steps:

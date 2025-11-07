@@ -30,6 +30,7 @@ A quick reference for the primary `mcporter` subcommands. Each command inherits
   - `--command <url|command>` – point at an ad-hoc HTTP endpoint (include `https://` or use `host/path.tool`) or a stdio command (anything with spaces, e.g., `"npx -y chrome-devtools-mcp@latest"`). If you omit `--command`, the first positional argument is inspected: whitespace → stdio, otherwise the parser probes for HTTP/HTTPS and falls back to config names.
   - `--output <path>` – where to write the TypeScript template.
   - `--bundle <path>` – emit a bundle (Node/Bun) ready for `bun x`.
+  - `--bundler rolldown|bun` – pick the bundler implementation (defaults to Rolldown; Bun’s bundler requires `--runtime bun` and a local Bun install).
   - `--compile <path>` – compile with Bun (implies `--runtime bun`).
   - `--timeout <ms>` / `--runtime node|bun` – shared via the generator flag
     parser so defaults stay consistent.

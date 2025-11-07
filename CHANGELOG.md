@@ -1,7 +1,14 @@
 # Changelog
 
 ## [Unreleased]
-_Nothing yet._
+
+### Code generation
+- Added a `--bundler rolldown|bun` flag to `mcporter generate-cli`, defaulting to Rolldown but allowing Bun’s bundler (when paired with `--runtime bun`) for teams that want to stay entirely inside the Bun toolchain. The generator now records the chosen bundler in artifact metadata and enforces the Bun-only constraint so reproduction via `--from` stays deterministic.
+- Bundling with Bun copies the generated template into mcporter’s install tree before invoking `bun build`, ensuring local `commander`/`mcporter` dependencies resolve even when the user runs the generator from an empty temp directory.
+
+### Testing
+- Added an integration test that exercises `mcporter generate-cli --bundler bun --runtime bun --bundle …`, verifying the emitted Bun bundle executes correctly and lists embedded tools before we attempt a release.
+- Expanded the generate-cli integration suite to compile with both Rolldown (default) and Bun bundlers, so CI exercises each path end-to-end (bundle + binary) whenever Bun is present.
 
 ## [0.3.2] - 2025-11-07
 
@@ -12,6 +19,7 @@ _Nothing yet._
 ### Code generation
 - Generated binaries now default to the current working directory (using the inferred server name) when `--compile` is provided without a path, and automatically append a numeric suffix when the target already exists.
 - Standalone CLIs inherit the improved help layout (color-aware title, grouped command summaries, embedded tool listings, and quick-start snippets) so generated artifacts read the same way as the main CLI.
+- Swapped the bundler from esbuild to Rolldown for both JS and Bun targets, removing the fragile per-architecture esbuild binaries while keeping aliasing for local dependencies and honoring `--minify` via Rolldown’s native minifier.
 - Improved `generate-cli` so inline stdio commands (e.g., `"npx chrome-devtools-mcp"`) parse correctly even when invoked from empty directories.
 
 ### Code generation

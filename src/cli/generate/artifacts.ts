@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build as esbuild, type Plugin } from 'esbuild';
+import { type RolldownPlugin, rolldown } from 'rolldown';
 import { verifyBunAvailable } from './runtime.js';
 
 const localRequire = createRequire(import.meta.url);
@@ -19,6 +19,25 @@ export async function bundleOutput({
   targetPath,
   runtimeKind,
   minify,
+  bundler,
+}: {
+  sourcePath: string;
+  targetPath: string;
+  runtimeKind: 'node' | 'bun';
+  minify: boolean;
+  bundler: 'rolldown' | 'bun';
+}): Promise<string> {
+  if (bundler === 'bun') {
+    return await bundleWithBun({ sourcePath, targetPath, runtimeKind, minify });
+  }
+  return await bundleWithRolldown({ sourcePath, targetPath, runtimeKind, minify });
+}
+
+async function bundleWithRolldown({
+  sourcePath,
+  targetPath,
+  runtimeKind,
+  minify,
 }: {
   sourcePath: string;
   targetPath: string;
@@ -27,18 +46,66 @@ export async function bundleOutput({
 }): Promise<string> {
   const absTarget = path.resolve(targetPath);
   await fs.mkdir(path.dirname(absTarget), { recursive: true });
-  await esbuild({
-    absWorkingDir: process.cwd(),
-    entryPoints: [sourcePath],
-    outfile: absTarget,
-    bundle: true,
-    platform: 'node',
-    format: runtimeKind === 'bun' ? 'esm' : 'cjs',
-    target: 'node20',
-    minify,
-    logLevel: 'silent',
-    plugins: dependencyAliasPlugin ? [dependencyAliasPlugin] : undefined,
+  const plugins = dependencyAliasPlugin ? [dependencyAliasPlugin] : undefined;
+  const bundle = await rolldown({
+    input: sourcePath,
+    treeshake: false,
+    plugins,
+    onLog(level, log, handler) {
+      if (typeof (log as { code?: string }).code === 'string' && (log as { code?: string }).code === 'EVAL') {
+        return;
+      }
+      handler(level, log);
+    },
   });
+  await bundle.write({
+    file: absTarget,
+    format: runtimeKind === 'bun' ? 'esm' : 'cjs',
+    sourcemap: false,
+    minify,
+  });
+  await fs.chmod(absTarget, 0o755);
+  return absTarget;
+}
+
+async function bundleWithBun({
+  sourcePath,
+  targetPath,
+  runtimeKind,
+  minify,
+}: {
+  sourcePath: string;
+  targetPath: string;
+  runtimeKind: 'node' | 'bun';
+  minify: boolean;
+}): Promise<string> {
+  const absTarget = path.resolve(targetPath);
+  await fs.mkdir(path.dirname(absTarget), { recursive: true });
+  const bunBin = await verifyBunAvailable();
+  const tmpRoot = path.join(packageRoot, 'tmp');
+  await fs.mkdir(tmpRoot, { recursive: true });
+  const stagingDir = await fs.mkdtemp(path.join(tmpRoot, 'bundle-'));
+  const stagingEntry = path.join(stagingDir, path.basename(sourcePath));
+  // Copy the template into the package tree so Bun sees our node_modules deps even when the
+  // CLI runs from an empty working directory.
+  await fs.copyFile(sourcePath, stagingEntry);
+  try {
+    const args = ['build', stagingEntry, '--outfile', absTarget, '--target', runtimeKind === 'bun' ? 'bun' : 'node'];
+    if (minify) {
+      args.push('--minify');
+    }
+    await new Promise<void>((resolve, reject) => {
+      execFile(bunBin, args, { cwd: packageRoot, env: process.env }, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+  } finally {
+    await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
+  }
   await fs.chmod(absTarget, 0o755);
   return absTarget;
 }
@@ -103,7 +170,7 @@ export function computeCompileTarget(
   return resolveUniquePath(process.cwd(), baseName);
 }
 
-function createLocalDependencyAliasPlugin(specifiers: string[]): Plugin | undefined {
+function createLocalDependencyAliasPlugin(specifiers: string[]): RolldownPlugin | undefined {
   const resolvedEntries = specifiers
     .map((specifier) => ({ specifier, path: resolveLocalDependency(specifier) }))
     .filter((entry): entry is { specifier: string; path: string } => Boolean(entry.path));
@@ -112,11 +179,12 @@ function createLocalDependencyAliasPlugin(specifiers: string[]): Plugin | undefi
   }
   return {
     name: 'mcporter-local-deps',
-    setup(build) {
-      for (const { specifier, path: resolvedPath } of resolvedEntries) {
-        const filter = new RegExp(`^${escapeForRegExp(specifier)}$`);
-        build.onResolve({ filter }, () => ({ path: resolvedPath }));
+    resolveId(source) {
+      const match = resolvedEntries.find((entry) => entry.specifier === source);
+      if (match) {
+        return match.path;
       }
+      return null;
     },
   };
 }
@@ -142,10 +210,6 @@ function resolveLocalDependency(specifier: string): string | undefined {
     }
     return undefined;
   }
-}
-
-function escapeForRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function sanitizeFileName(input: string): string {

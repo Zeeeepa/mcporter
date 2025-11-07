@@ -130,6 +130,63 @@ describe('mcporter CLI integration', () => {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
   });
 
+  it('bundles with Bun when requested via --bundler bun', async () => {
+    if (!(await hasBun())) {
+      console.warn('bun not available on this runner; skipping Bun bundler integration test.');
+      return;
+    }
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcporter-bun-bundle-'));
+    await fs.writeFile(
+      path.join(tempDir, 'package.json'),
+      JSON.stringify({ name: 'mcporter-bun-bundle', version: '0.0.0' }, null, 2),
+      'utf8'
+    );
+    const bundlePath = path.join(tempDir, 'context7-bun.js');
+
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        process.execPath,
+        [
+          CLI_ENTRY,
+          'generate-cli',
+          '--command',
+          baseUrl.toString(),
+          '--runtime',
+          'bun',
+          '--bundle',
+          bundlePath,
+          '--bundler',
+          'bun',
+        ],
+        {
+          cwd: tempDir,
+          env: { ...process.env, MCPORTER_NO_FORCE_EXIT: '1' },
+        },
+        (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        }
+      );
+    });
+
+    const stats = await fs.stat(bundlePath);
+    expect(stats.isFile()).toBe(true);
+    const { stdout } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      execFile(bundlePath, ['list-tools'], { env: process.env }, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve({ stdout, stderr });
+      });
+    });
+    expect(stdout).toContain('Ping - Simple health check');
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  });
+
   it('runs "node dist/cli.js generate-cli --compile" when bun is available', async () => {
     if (!(await hasBun())) {
       console.warn('bun not available on this runner; skipping compile integration test.');
@@ -174,6 +231,65 @@ describe('mcporter CLI integration', () => {
       });
     });
     expect(stdout).toContain('ping - Simple health check');
+
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  });
+
+  it('runs "node dist/cli.js generate-cli --compile" with --bundler bun', async () => {
+    if (!(await hasBun())) {
+      console.warn('bun not available on this runner; skipping Bun bundler compile integration test.');
+      return;
+    }
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcporter-cli-compile-bun-'));
+    await fs.writeFile(
+      path.join(tempDir, 'package.json'),
+      JSON.stringify({ name: 'mcporter-compile-bun', version: '0.0.0' }, null, 2),
+      'utf8'
+    );
+    const binaryPath = path.join(tempDir, 'context7-cli-bun');
+
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        process.execPath,
+        [
+          CLI_ENTRY,
+          'generate-cli',
+          '--command',
+          baseUrl.toString(),
+          '--compile',
+          binaryPath,
+          '--runtime',
+          'bun',
+          '--bundler',
+          'bun',
+        ],
+        {
+          cwd: tempDir,
+          env: { ...process.env, MCPORTER_NO_FORCE_EXIT: '1' },
+        },
+        (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        }
+      );
+    });
+
+    const stats = await fs.stat(binaryPath);
+    expect(stats.isFile()).toBe(true);
+
+    const { stdout } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      execFile(binaryPath, ['list-tools'], { env: process.env }, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve({ stdout, stderr });
+      });
+    });
+    expect(stdout).toContain('Ping - Simple health check');
 
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
   });

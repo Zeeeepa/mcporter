@@ -182,7 +182,7 @@ function renderStandaloneHelp(): string {
 	if (generatorInfo) {
 		lines.push('', tint.extraDim(generatorInfo));
 	}
-	return lines.join('\n');
+	return lines.join('\\n');
 }
 
 function formatSection(title: string, entries: { name: string; summary: string; usage: string }[]): string[] {
@@ -201,7 +201,7 @@ function formatSection(title: string, entries: { name: string; summary: string; 
 
 function formatEmbeddedTools(): string {
 	const header = supportsAnsiColor ? tint.bold('Embedded tools') : 'Embedded tools';
-	return header + '\n' + generatorTools;
+	return header + '\\n' + generatorTools;
 }
 
 function formatGlobalFlags(): string {
@@ -213,7 +213,7 @@ function formatGlobalFlags(): string {
 		['-o, --output <format>', 'text | markdown | json | raw (default text)'],
 	];
 	const formatted = entries.map(([flag, summary]) => '  ' + flag.padEnd(28) + summary);
-	return [header, ...formatted].join('\n');
+	return [header, ...formatted].join('\\n');
 }
 
 function formatQuickStart(): string {
@@ -224,8 +224,8 @@ function formatQuickStart(): string {
 		[embeddedName + ' <tool> key=value -o markdown', 'render markdown responses'],
 		[embeddedName + ' <tool> ... -c ./config/mcporter.json', 'reuse a configured server definition'],
 	];
-	const formatted = examples.map(([cmd, note]) => '  ' + cmd + '\n    ' + tint.dim('# ' + note));
-	return [header, ...formatted].join('\n');
+	const formatted = examples.map(([cmd, note]) => '  ' + cmd + '\\n    ' + tint.dim('# ' + note));
+	return [header, ...formatted].join('\\n');
 }
 
 function printResult(result: unknown, format: string) {

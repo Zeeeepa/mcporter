@@ -19,6 +19,7 @@ export interface GenerateCliOptions {
   readonly rootDir?: string;
   readonly outputPath?: string;
   readonly runtime?: 'node' | 'bun';
+  readonly bundler?: 'rolldown' | 'bun';
   readonly bundle?: boolean | string;
   readonly timeoutMs?: number;
   readonly minify?: boolean;
@@ -30,6 +31,10 @@ export async function generateCli(
   options: GenerateCliOptions
 ): Promise<{ outputPath: string; bundlePath?: string; compilePath?: string }> {
   const runtimeKind = await resolveRuntimeKind(options.runtime, options.compile);
+  const bundlerKind = options.bundler ?? 'rolldown';
+  if (bundlerKind === 'bun' && runtimeKind !== 'bun') {
+    throw new Error('--bundler bun currently requires --runtime bun.');
+  }
   const timeoutMs = options.timeoutMs ?? 30_000;
   const { definition, name } = await resolveServerDefinition(options.serverRef, options.configPath, options.rootDir);
   const tools = await fetchTools(definition, name, options.configPath, options.rootDir);
@@ -41,6 +46,7 @@ export async function generateCli(
       configPath: options.configPath,
       rootDir: options.rootDir,
       runtime: runtimeKind,
+      bundler: bundlerKind,
       outputPath: options.outputPath,
       bundle: options.bundle,
       compile: options.compile,
@@ -101,6 +107,7 @@ export async function generateCli(
         runtimeKind,
         targetPath,
         minify: options.minify ?? false,
+        bundler: bundlerKind,
       });
 
       if (options.compile) {

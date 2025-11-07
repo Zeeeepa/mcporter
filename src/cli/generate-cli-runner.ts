@@ -14,6 +14,7 @@ export interface GenerateFlags {
   command?: CommandInput;
   description?: string;
   output?: string;
+  bundler?: 'rolldown' | 'bun';
   bundle?: boolean | string;
   compile?: boolean | string;
   runtime?: 'node' | 'bun';
@@ -100,6 +101,7 @@ export async function handleGenerateCli(args: string[], globalFlags: FlagMap): P
     rootDir: globalFlags['--root'],
     outputPath: parsed.output,
     runtime: parsed.runtime,
+    bundler: parsed.bundler,
     bundle: parsed.bundle,
     timeoutMs: parsed.timeout,
     compile: parsed.compile,
@@ -136,6 +138,7 @@ export async function resolveGenerateRequestFromArtifact(
       rootDir: globalFlags['--root'] ?? invocation.rootDir,
       outputPath: parsed.output ?? invocation.outputPath,
       runtime: parsed.runtime ?? invocation.runtime,
+      bundler: parsed.bundler ?? invocation.bundler,
       bundle: parsed.bundle ?? invocation.bundle,
       timeoutMs: parsed.timeout ?? invocation.timeoutMs,
       compile: parsed.compile ?? invocation.compile,
@@ -171,6 +174,9 @@ export function buildGenerateCliCommand(
 
   if (invocation.outputPath) {
     tokens.push('--output', invocation.outputPath);
+  }
+  if (invocation.bundler && invocation.bundler !== 'rolldown') {
+    tokens.push('--bundler', invocation.bundler);
   }
   if (typeof invocation.bundle === 'string') {
     tokens.push('--bundle', invocation.bundle);
@@ -208,6 +214,7 @@ function parseGenerateFlags(args: string[]): GenerateFlags {
   let command: CommandInput | undefined;
   let description: string | undefined;
   let output: string | undefined;
+  let bundler: 'rolldown' | 'bun' | undefined;
   let bundle: boolean | string | undefined;
   let compile: boolean | string | undefined;
   const runtime: 'node' | 'bun' | undefined = common.runtime;
@@ -270,6 +277,15 @@ function parseGenerateFlags(args: string[]): GenerateFlags {
       }
       continue;
     }
+    if (token === '--bundler') {
+      const value = expectValue(token, args[index + 1]);
+      if (value !== 'rolldown' && value !== 'bun') {
+        throw new Error("--bundler must be 'rolldown' or 'bun'.");
+      }
+      bundler = value;
+      args.splice(index, 2);
+      continue;
+    }
     if (token === '--compile') {
       const next = args[index + 1];
       if (!next || next.startsWith('--')) {
@@ -320,6 +336,7 @@ function parseGenerateFlags(args: string[]): GenerateFlags {
     command,
     description,
     output,
+    bundler,
     bundle,
     compile,
     runtime,

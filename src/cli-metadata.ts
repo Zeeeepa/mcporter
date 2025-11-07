@@ -47,6 +47,7 @@ export interface CliArtifactMetadata {
     configPath?: string;
     rootDir?: string;
     runtime: 'node' | 'bun';
+    bundler?: 'rolldown' | 'bun';
     outputPath?: string;
     bundle?: boolean | string;
     compile?: boolean | string;

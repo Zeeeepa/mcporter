@@ -21,6 +21,7 @@ describe('bundleOutput', () => {
       targetPath: outputPath,
       runtimeKind: 'node',
       minify: false,
+      bundler: 'rolldown',
     });
 
     const stats = await fsPromises.stat(result);
