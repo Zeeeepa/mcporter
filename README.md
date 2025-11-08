@@ -130,6 +130,7 @@ Helpful flags:
 - `--config <path>` -- custom config file (defaults to `./config/mcporter.json`).
 - `--root <path>` -- working directory for stdio commands.
 - `--log-level <debug|info|warn|error>` -- adjust verbosity (respects `MCPORTER_LOG_LEVEL`).
+- `--oauth-timeout <ms>` -- shorten/extend the OAuth browser wait; same as `MCPORTER_OAUTH_TIMEOUT_MS` / `MCPORTER_OAUTH_TIMEOUT`.
 - `--tail-log` -- stream the last 20 lines of any log files referenced by the tool response.
 - `--output <format>` or `--raw` -- control formatted output (defaults to pretty-printed auto detection).
 - `--json` (on `mcporter list`) -- emit JSON summaries/counts instead of text. Multi-server runs report per-server statuses, counts, and connection issues; single-server runs include the full tool metadata.
@@ -142,7 +143,7 @@ Helpful flags:
 
 > Tip: You can skip the verb entirely—`mcporter firecrawl` automatically runs `mcporter list firecrawl`, and dotted tokens like `mcporter linear.list_issues` dispatch to the call command (typo fixes included).
 
-Timeouts default to 30 s; override with `MCPORTER_LIST_TIMEOUT` or `MCPORTER_CALL_TIMEOUT` when you expect slow startups.
+Timeouts default to 30 s; override with `MCPORTER_LIST_TIMEOUT` or `MCPORTER_CALL_TIMEOUT` when you expect slow startups. OAuth browser handshakes get a separate 60 s grace period; pass `--oauth-timeout <ms>` (or export `MCPORTER_OAUTH_TIMEOUT_MS`) when you need the CLI to bail out faster while you diagnose stubborn auth flows.
 
 ### Try an MCP without editing config
 

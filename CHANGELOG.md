@@ -2,7 +2,11 @@
 
 ## [Unreleased]
 
-_No changes yet._
+### CLI & runtime
+- Added a global `--oauth-timeout <ms>` flag (and the matching `MCPORTER_OAUTH_TIMEOUT_MS` override) so long-running OAuth handshakes can be shortened during debugging; the runtime now logs a clear warning and tears down the flow once the limit is reached, ensuring `mcporter list/call/auth` always exit.
+
+### Docs
+- Documented the new OAuth timeout flag/env var across the README and tmux/hang-debug guides so release checklists and manual repro steps call out the faster escape hatch.
 
 ## [0.3.3] - 2025-11-07
 

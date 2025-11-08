@@ -19,6 +19,9 @@ culprit is a child MCP server process that keeps the stdio transport alive.
 5. **Retry with `--timeout`** – if the tool itself hangs, use
    `--timeout <ms>` or `MCPORTER_CALL_TIMEOUT` to fail fast while still
    gathering diagnostics.
+6. **Clamp OAuth waits** – when the browser-based sign-in never completes,
+   run with `--oauth-timeout <ms>` (or `MCPORTER_OAUTH_TIMEOUT_MS`) so the CLI
+   tears down the pending flow instead of waiting the full minute.
 
 ## Example Session
 

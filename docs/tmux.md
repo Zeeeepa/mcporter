@@ -21,4 +21,4 @@ Use `tmux` to verify whether a CLI command actually exits or is stalled on open 
    tmux kill-session -t mcporter-check
    ```
 
-This workflow makes it easy to confirm whether `mcporter` commands return promptly after shutdown changes (for example, when debugging lingering MCP stdio servers). Use `MCPORTER_DEBUG_HANG=1` to emit active-handle diagnostics inside the tmux session when necessary.
+This workflow makes it easy to confirm whether `mcporter` commands return promptly after shutdown changes (for example, when debugging lingering MCP stdio servers). Use `MCPORTER_DEBUG_HANG=1` to emit active-handle diagnostics inside the tmux session when necessary. For OAuth flows that keep a session open, set `--oauth-timeout 5000` (or `MCPORTER_OAUTH_TIMEOUT_MS=5000`) so the CLI proves it can exit without waiting a full minute for a browser callback.

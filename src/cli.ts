@@ -37,7 +37,7 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
-  const globalFlags = extractFlags(args, ['--config', '--root', '--log-level']);
+  const globalFlags = extractFlags(args, ['--config', '--root', '--log-level', '--oauth-timeout']);
   if (globalFlags['--log-level']) {
     try {
       const parsedLevel = parseLogLevel(globalFlags['--log-level'], getActiveLogLevel());
@@ -48,6 +48,17 @@ export async function runCli(argv: string[]): Promise<void> {
       process.exit(1);
       return;
     }
+  }
+  let oauthTimeoutOverride: number | undefined;
+  if (globalFlags['--oauth-timeout']) {
+    // Shorten/extend the OAuth browser-wait so tests (or impatient humans) are not stuck for a full minute.
+    const parsed = Number.parseInt(globalFlags['--oauth-timeout'], 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      logError("Flag '--oauth-timeout' must be a positive integer (milliseconds).");
+      process.exit(1);
+      return;
+    }
+    oauthTimeoutOverride = parsed;
   }
   const command = args.shift();
 
@@ -78,12 +89,15 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  const runtimeOptions = {
+    configPath: globalFlags['--config'],
+    rootDir: globalFlags['--root'],
+    logger: getActiveLogger(),
+    oauthTimeoutMs: oauthTimeoutOverride,
+  };
+
   if (command === 'emit-ts') {
-    const runtime = await createRuntime({
-      configPath: globalFlags['--config'],
-      rootDir: globalFlags['--root'],
-      logger: getActiveLogger(),
-    });
+    const runtime = await createRuntime(runtimeOptions);
     try {
       await handleEmitTs(runtime, args);
     } finally {
@@ -92,11 +106,7 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
-  const runtime = await createRuntime({
-    configPath: globalFlags['--config'],
-    rootDir: globalFlags['--root'],
-    logger: getActiveLogger(),
-  });
+  const runtime = await createRuntime(runtimeOptions);
 
   const inference = inferCommandRouting(command, args, runtime.getDefinitions());
   if (inference.kind === 'abort') {
@@ -282,6 +292,10 @@ function formatGlobalFlags(colorize: boolean): string {
     {
       flag: '--log-level <debug|info|warn|error>',
       summary: 'Adjust CLI logging (defaults to warn)',
+    },
+    {
+      flag: '--oauth-timeout <ms>',
+      summary: 'Time to wait for browser-based OAuth before giving up (default 60000)',
     },
   ];
   const formatted = entries.map((entry) => `  ${entry.flag.padEnd(34)}${entry.summary}`);

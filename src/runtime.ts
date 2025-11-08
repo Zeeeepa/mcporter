@@ -15,7 +15,22 @@ import './sdk-patches.js';
 
 const PACKAGE_NAME = 'mcporter';
 const CLIENT_VERSION = '0.3.3';
+const DEFAULT_OAUTH_CODE_TIMEOUT_MS = 60_000;
+const OAUTH_CODE_TIMEOUT_MS = parseOAuthTimeout(
+  process.env.MCPORTER_OAUTH_TIMEOUT_MS ?? process.env.MCPORTER_OAUTH_TIMEOUT
+);
 export const MCPORTER_VERSION = CLIENT_VERSION;
+
+function parseOAuthTimeout(raw: string | undefined): number {
+  if (!raw) {
+    return DEFAULT_OAUTH_CODE_TIMEOUT_MS;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_OAUTH_CODE_TIMEOUT_MS;
+  }
+  return parsed;
+}
 
 export interface RuntimeOptions {
   readonly configPath?: string;
@@ -26,6 +41,7 @@ export interface RuntimeOptions {
     version: string;
   };
   readonly logger?: RuntimeLogger;
+  readonly oauthTimeoutMs?: number;
 }
 
 export type RuntimeLogger = Logger;
@@ -106,6 +122,7 @@ class McpRuntime implements Runtime {
   private readonly clients = new Map<string, Promise<ClientContext>>();
   private readonly logger: RuntimeLogger;
   private readonly clientInfo: { name: string; version: string };
+  private readonly oauthTimeoutMs?: number;
 
   constructor(servers: ServerDefinition[], options: RuntimeOptions = {}) {
     this.definitions = new Map(servers.map((entry) => [entry.name, entry]));
@@ -114,6 +131,7 @@ class McpRuntime implements Runtime {
       name: PACKAGE_NAME,
       version: CLIENT_VERSION,
     };
+    this.oauthTimeoutMs = options.oauthTimeoutMs;
   }
 
   // listServers returns configured names sorted alphabetically for stable CLI output.
@@ -321,12 +339,17 @@ class McpRuntime implements Runtime {
         } catch (primaryError) {
           if (isUnauthorizedError(primaryError)) {
             await oauthSession?.close().catch(() => {});
+            oauthSession = undefined;
             const promoted = maybeEnableOAuth(activeDefinition, this.logger);
             if (promoted && options.maxOAuthAttempts !== 0) {
               activeDefinition = promoted;
               this.definitions.set(promoted.name, promoted);
               continue;
             }
+          }
+          if (primaryError instanceof OAuthTimeoutError) {
+            await oauthSession?.close().catch(() => {});
+            throw primaryError;
           }
           if (primaryError instanceof Error) {
             this.logger.info(`Falling back to SSE transport for '${activeDefinition.name}': ${primaryError.message}`);
@@ -346,6 +369,9 @@ class McpRuntime implements Runtime {
           } catch (sseError) {
             await closeTransportAndWait(this.logger, sseTransport).catch(() => {});
             await oauthSession?.close().catch(() => {});
+            if (sseError instanceof OAuthTimeoutError) {
+              throw sseError;
+            }
             if (isUnauthorizedError(sseError) && options.maxOAuthAttempts !== 0) {
               const promoted = maybeEnableOAuth(activeDefinition, this.logger);
               if (promoted) {
@@ -389,7 +415,12 @@ class McpRuntime implements Runtime {
           `OAuth authorization required for '${serverName ?? 'unknown'}'. Waiting for browser approval...`
         );
         try {
-          const code = await session.waitForAuthorizationCode();
+          const code = await waitForAuthorizationCodeWithTimeout(
+            session,
+            this.logger,
+            serverName,
+            this.oauthTimeoutMs ?? OAUTH_CODE_TIMEOUT_MS
+          );
           if (typeof transport.finishAuth === 'function') {
             await transport.finishAuth(code);
             this.logger.info('Authorization code accepted. Retrying connection...');
@@ -406,10 +437,55 @@ class McpRuntime implements Runtime {
   }
 }
 
+class OAuthTimeoutError extends Error {
+  public readonly timeoutMs: number;
+  public readonly serverName: string;
+
+  constructor(serverName: string, timeoutMs: number) {
+    const seconds = Math.round(timeoutMs / 1000);
+    super(`OAuth authorization for '${serverName}' timed out after ${seconds}s; aborting.`);
+    this.name = 'OAuthTimeoutError';
+    this.timeoutMs = timeoutMs;
+    this.serverName = serverName;
+  }
+}
+
 export const __test = {
   maybeEnableOAuth,
   isUnauthorizedError,
+  waitForAuthorizationCodeWithTimeout,
+  OAuthTimeoutError,
 };
+
+// Race the pending OAuth browser handshake so the runtime can't sit on an unresolved promise forever.
+function waitForAuthorizationCodeWithTimeout(
+  session: OAuthSession,
+  logger: RuntimeLogger,
+  serverName?: string,
+  timeoutMs = OAUTH_CODE_TIMEOUT_MS
+): Promise<string> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return session.waitForAuthorizationCode();
+  }
+  const displayName = serverName ?? 'unknown';
+  return new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const error = new OAuthTimeoutError(displayName, timeoutMs);
+      logger.warn(error.message);
+      reject(error);
+    }, timeoutMs);
+    session.waitForAuthorizationCode().then(
+      (code) => {
+        clearTimeout(timer);
+        resolve(code);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 // createConsoleLogger produces the default runtime logger honoring MCPORTER_LOG_LEVEL.
 function createConsoleLogger(level: LogLevel = resolveLogLevelFromEnv()): RuntimeLogger {

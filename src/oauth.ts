@@ -270,6 +270,11 @@ class FileOAuthClientProvider implements OAuthClientProvider {
 
   // close stops the temporary callback server created for the OAuth session.
   async close(): Promise<void> {
+    if (this.authorizationDeferred) {
+      // If the CLI is tearing down mid-flow, reject the pending wait promise so runtime shutdown isn't blocked.
+      this.authorizationDeferred.reject(new Error('OAuth session closed before receiving authorization code.'));
+      this.authorizationDeferred = null;
+    }
     if (!this.server) {
       return;
     }
