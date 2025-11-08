@@ -38,7 +38,7 @@ If you are unsure about sth, just google it.
 
 ## Changelog Guidelines
 - Focus on user-facing behavior changes; avoid calling out internal testing-only updates.
-- Do not mention doc-only edits; keep documentation updates out of the CHANGELOG entirely.
+- **Never mention doc-only edits** in the changelog. If a change only touches docs (or docs + tests) leave the changelog untouched. Only add entries when runtime behavior, CLI UX, or generated artifacts change.
 
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits (https://www.conventionalcommits.org/en/v1.0.0/) with the allowed types `feat|fix|refactor|build|ci|chore|docs|style|perf|test`, optional scopes (`type(scope): description`), and `!` for breaking changes (e.g., `feat: Prevent racing of requests`, `chore!: Drop support for iOS 16`).

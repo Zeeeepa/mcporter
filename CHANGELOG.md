@@ -5,9 +5,6 @@
 ### CLI & runtime
 - mcporter now only looks for Codex servers in `~/.codex/config.toml` (and the repo-local `.codex/config.toml` when present), matching Codex’s documented default path and preventing silent failures when users follow the official instructions.
 
-### Docs
-- Documented the Codex import location in `docs/config.md`, clarifying that `config.toml` is the only supported filename and that the older `mcp.toml` variant has been retired.
-
 ## [0.3.6] - 2025-11-08
 
 ### CLI & runtime
