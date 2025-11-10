@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import type { ServerDefinition } from '../config.js';
@@ -56,6 +57,7 @@ export async function runDaemonHost(options: DaemonHostOptions): Promise<void> {
     enabled: Boolean(options.logPath),
     logAllServers: options.logAllServers ?? false,
     servers: combinedServerLogs,
+    logPath: options.logPath,
   });
 
   await prepareSocket(options.socketPath);
@@ -136,6 +138,7 @@ export async function runDaemonHost(options: DaemonHostOptions): Promise<void> {
     clearInterval(idleWatcher);
     server.close();
     await runtime.close().catch(() => {});
+    await disposeLogContext(logContext).catch(() => {});
     await cleanupArtifacts(options);
     process.exit(0);
   };
@@ -405,22 +408,54 @@ interface LogContext {
   enabled: boolean;
   logAllServers: boolean;
   servers: Set<string>;
+  writer?: fsSync.WriteStream;
 }
 
-function createLogContext(options: { enabled: boolean; logAllServers: boolean; servers: Set<string> }): LogContext {
+function createLogContext(options: {
+  enabled: boolean;
+  logAllServers: boolean;
+  servers: Set<string>;
+  logPath?: string;
+}): LogContext {
   const derivedEnabled = options.enabled || options.logAllServers || options.servers.size > 0;
-  return {
+  const context: LogContext = {
     enabled: derivedEnabled,
     logAllServers: options.logAllServers,
     servers: options.servers,
   };
+  if (derivedEnabled && options.logPath) {
+    try {
+      fsSync.mkdirSync(path.dirname(options.logPath), { recursive: true });
+      context.writer = fsSync.createWriteStream(options.logPath, { flags: 'a' });
+    } catch (error) {
+      console.warn(`[daemon] Failed to open log file ${options.logPath}: ${(error as Error).message}`);
+    }
+  }
+  return context;
 }
 
 function logEvent(context: LogContext, message: string): void {
   if (!context.enabled) {
     return;
   }
-  console.log(`[daemon] ${new Date().toISOString()} ${message}`);
+  const line = `[daemon] ${new Date().toISOString()} ${message}`;
+  console.log(line);
+  try {
+    context.writer?.write(`${line}\n`);
+  } catch {
+    // ignore file write failures
+  }
+}
+
+async function disposeLogContext(context: LogContext): Promise<void> {
+  const writer = context.writer;
+  if (!writer) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    writer.end(() => resolve());
+    writer.on('error', () => resolve());
+  });
 }
 
 function shouldLogServer(context: LogContext, server: string): boolean {

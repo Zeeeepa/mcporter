@@ -13,6 +13,22 @@ const STDIO_SERVER_MODULE = pathToFileURL(testRequire.resolve('@modelcontextprot
 const ZOD_MODULE = pathToFileURL(testRequire.resolve('zod')).href;
 const describeDaemon = process.platform === 'win32' ? describe.skip : describe;
 
+async function readFileWithRetries(filePath: string, retries = 20, delayMs = 100): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fs.readFile(filePath, 'utf8');
+    } catch (error) {
+      lastError = error;
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw lastError ?? new Error(`Failed to read ${filePath}`);
+}
+
 async function ensureDistBuilt(): Promise<void> {
   try {
     await fs.access(CLI_ENTRY);
@@ -142,7 +158,7 @@ await new Promise((resolve) => {
       expect(secondResult.count).toBe(2);
       expect(secondResult.instanceId).toBe(firstResult.instanceId);
 
-      const logContents = await fs.readFile(logPath, 'utf8');
+      const logContents = await readFileWithRetries(logPath);
       expect(logContents).toContain('callTool start server=daemon-e2e tool=next_value');
       expect(logContents).toContain('callTool success server=daemon-e2e tool=next_value');
     } finally {
