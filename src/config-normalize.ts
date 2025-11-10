@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import type { CommandSpec, RawEntry, ServerDefinition, ServerSource } from './config-schema.js';
+import type { CommandSpec, RawEntry, ServerDefinition, ServerLoggingOptions, ServerSource } from './config-schema.js';
 import { expandHome } from './env.js';
 import { resolveLifecycle } from './lifecycle.js';
 
@@ -44,6 +44,7 @@ export function normalizeServerEntry(
     auth === 'oauth' ? (tokenCacheDir ?? path.join(os.homedir(), '.mcporter', name)) : (tokenCacheDir ?? undefined);
 
   const lifecycle = resolveLifecycle(name, raw.lifecycle, command);
+  const logging = normalizeLogging(raw.logging);
 
   return {
     name,
@@ -56,6 +57,7 @@ export function normalizeServerEntry(
     oauthRedirectUrl,
     source,
     lifecycle,
+    logging,
   };
 }
 
@@ -198,3 +200,13 @@ function parseCommandString(value: string): string[] {
 }
 
 export { ensureHttpAcceptHeader };
+
+function normalizeLogging(raw?: { daemon?: { enabled?: boolean } }): ServerLoggingOptions | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  if (raw.daemon) {
+    return { daemon: { enabled: raw.daemon.enabled } } satisfies ServerLoggingOptions;
+  }
+  return undefined;
+}
