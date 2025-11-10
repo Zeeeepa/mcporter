@@ -36,6 +36,13 @@ describe('resolveLifecycle', () => {
     expect(lifecycle.resolveLifecycle('chrome-devtools', undefined, chromeCommand)).toBeUndefined();
   });
 
+  it('matches keep-alive overrides by canonical command name', async () => {
+    process.env.MCPORTER_DISABLE_KEEPALIVE = 'chrome-devtools';
+    vi.resetModules();
+    const lifecycle = await import('../src/lifecycle.js');
+    expect(lifecycle.resolveLifecycle('npx-y', undefined, chromeCommand)).toBeUndefined();
+  });
+
   it('respects explicit lifecycle objects', async () => {
     vi.resetModules();
     const lifecycle = await import('../src/lifecycle.js');
