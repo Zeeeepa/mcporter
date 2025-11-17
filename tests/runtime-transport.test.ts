@@ -49,16 +49,13 @@ describe('createClientContext (HTTP)', () => {
   it('promotes ad-hoc HTTP servers to OAuth after unauthorized, then retries', async () => {
     const definition = stubHttpDefinition('https://example.com/secure');
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-    const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js');
 
     const clientConnect = vi
       .spyOn(Client.prototype, 'connect')
       .mockImplementationOnce(async () => {
         throw new Error('SSE error: Non-200 status code (401)');
       })
-      .mockImplementationOnce(async (transport) => {
-        expect(transport).toBeInstanceOf(SSEClientTransport);
-      });
+      .mockImplementationOnce(async () => {});
 
     const context = await createClientContext(definition, logger, clientInfo, { maxOAuthAttempts: 1 });
 

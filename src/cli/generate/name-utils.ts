@@ -1,8 +1,21 @@
 import { splitCommandLine } from '../adhoc-server.js';
+import { looksLikeHttpUrl, normalizeHttpUrlCandidate } from '../http-utils.js';
 import type { CommandInput } from './types.js';
 
 export function inferNameFromCommand(command: CommandInput): string | undefined {
   if (typeof command === 'string') {
+    if (looksLikeHttpUrl(command)) {
+      const normalized = normalizeHttpUrlCandidate(command) ?? command;
+      try {
+        const url = new URL(normalized);
+        const derived = deriveNameFromUrl(url);
+        if (derived) {
+          return derived;
+        }
+      } catch {
+        // ignore parse failures; fall through to token heuristic
+      }
+    }
     const trimmed = command.trim();
     if (looksLikeInlineCommand(trimmed)) {
       try {
@@ -107,6 +120,37 @@ function findLastPositionalArg(parts: string[]): string | undefined {
       continue;
     }
     return part;
+  }
+  return undefined;
+}
+
+function deriveNameFromUrl(url: URL): string | undefined {
+  const genericHosts = new Set(['www', 'api', 'mcp', 'service', 'services', 'app', 'localhost']);
+  const knownTlds = new Set(['com', 'net', 'org', 'io', 'ai', 'app', 'dev', 'co', 'cloud']);
+  const parts = url.hostname.split('.').filter(Boolean);
+  const filtered = parts.filter((part) => {
+    const lower = part.toLowerCase();
+    if (genericHosts.has(lower)) {
+      return false;
+    }
+    if (knownTlds.has(lower)) {
+      return false;
+    }
+    if (/^\d+$/.test(part)) {
+      return false;
+    }
+    return true;
+  });
+  if (filtered.length > 0) {
+    const last = filtered[filtered.length - 1];
+    if (last) {
+      return last;
+    }
+  }
+  const segments = url.pathname.split('/').filter(Boolean);
+  const firstSegment = segments[0];
+  if (firstSegment) {
+    return firstSegment.replace(/[^a-zA-Z0-9-_]/g, '-');
   }
   return undefined;
 }
