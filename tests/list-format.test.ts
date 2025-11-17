@@ -18,6 +18,23 @@ describe('list format helpers', () => {
       { verbose: true }
     );
     const plain = stripAnsi(suffix);
-    expect(plain).toContain('[sources: /project/config/mcporter.json · /home/user/.cursor/mcp.json]');
+    expect(plain).toContain(
+      '[sources: /project/config/mcporter.json (primary) · /home/user/.cursor/mcp.json (shadowed)]'
+    );
+  });
+
+  it('tags imports shadowed by a local primary', () => {
+    const suffix = formatSourceSuffix(
+      [
+        { kind: 'local', path: '/project/config/mcporter.json' },
+        { kind: 'import', path: '/home/user/.cursor/mcp.json' },
+      ],
+      false,
+      { verbose: true }
+    );
+    const plain = stripAnsi(suffix);
+    expect(plain).toContain(
+      '[sources: /project/config/mcporter.json (primary) · /home/user/.cursor/mcp.json (shadowed by local)]'
+    );
   });
 });

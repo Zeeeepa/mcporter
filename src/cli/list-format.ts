@@ -89,8 +89,15 @@ export function formatSourceSuffix(
     return inline ? tinted : ` ${tinted}`;
   }
   // When verbose, show every contributing source (primary first) so duplicates are discoverable.
-  const formatted = sources.map((entry) => formatPathForDisplay(entry.path));
-  const label = sources.length === 1 ? `source: ${formatted[0]}` : `sources: ${formatted.join(' · ')}`;
+  const [primary, ...alternates] = sources;
+  const primaryLabel = `${formatPathForDisplay(primary.path)} (primary)`;
+  const altLabels = alternates.map((entry) => {
+    const base = formatPathForDisplay(entry.path);
+    const shadowReason = primary.kind === 'local' && entry.kind !== 'local' ? 'shadowed by local' : 'shadowed';
+    return `${base} (${shadowReason})`;
+  });
+  const label =
+    altLabels.length === 0 ? `source: ${primaryLabel}` : `sources: ${[primaryLabel, ...altLabels].join(' · ')}`;
   const tinted = extraDimText(inline ? label : `[${label}]`);
   return inline ? tinted : ` ${tinted}`;
 }
