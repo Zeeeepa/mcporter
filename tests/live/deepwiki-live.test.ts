@@ -34,5 +34,20 @@ describe.skipIf(Boolean(skipReason()))('deepwiki live', () => {
       expect(normalized).toContain('Available pages for facebook/react');
       expect(normalized).toContain('Overview');
     }, 30_000);
+
+    it(`prints plain text when default output is used via ${name}`, async () => {
+      const { stdout, stderr } = await execFileAsync('node', [
+        'dist/cli.js',
+        'call',
+        url,
+        'read_wiki_structure',
+        'repoName:facebook/react',
+      ]);
+      const normalized = (stdout || stderr).trim();
+      expect(normalized).toContain('Available pages for facebook/react');
+      // Ensure we rendered the text content, not the JSON envelope.
+      expect(normalized).not.toContain('"type"');
+      expect(normalized.startsWith('{')).toBe(false);
+    }, 30_000);
   });
 });
