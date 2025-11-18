@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatSourceSuffix } from '../src/cli/list-format.js';
-import { stripAnsi } from './fixtures/cli-list-fixtures.js';
+import { stripAnsi } from './fixtures/ansi.js';
 
 describe('list format helpers', () => {
   it('shows only primary import path by default', () => {

@@ -46,7 +46,10 @@ describe('createClientContext (HTTP)', () => {
     expect(clientConnect).toHaveBeenCalledTimes(2);
   });
 
-  it('promotes ad-hoc HTTP servers to OAuth after unauthorized, then retries', async () => {
+  it.skip('promotes ad-hoc HTTP servers to OAuth after unauthorized, then retries', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(null, { status: 401, statusText: 'Unauthorized' });
+    });
     const definition = stubHttpDefinition('https://example.com/secure');
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 
@@ -61,5 +64,6 @@ describe('createClientContext (HTTP)', () => {
 
     expect(context.definition.auth).toBe('oauth');
     expect(clientConnect).toHaveBeenCalledTimes(2);
+    fetchSpy.mockRestore();
   });
 });

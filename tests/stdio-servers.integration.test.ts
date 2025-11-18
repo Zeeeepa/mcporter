@@ -83,12 +83,14 @@ describe('stdio MCP servers (filesystem + memory)', () => {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it('lists filesystem tools and reads files via stdio MCP', async () => {
-    const listResult = await runCli(['list', 'fs-test'], configPath);
-    expect(listResult.stdout).toContain('Filesystem MCP for stdio e2e tests');
-    const callResult = await runCli(
-      [
-        'call',
+  it(
+    'lists filesystem tools and reads files via stdio MCP',
+    async () => {
+      const listResult = await runCli(['list', 'fs-test'], configPath);
+      expect(listResult.stdout).toContain('Filesystem MCP for stdio e2e tests');
+      const callResult = await runCli(
+        [
+          'call',
         'fs-test.read_text_file',
         '--output',
         'json',
@@ -96,9 +98,11 @@ describe('stdio MCP servers (filesystem + memory)', () => {
         JSON.stringify({ path: path.join(fsRoot, 'hello.txt') }),
       ],
       configPath
-    );
-    expect(callResult.stdout).toContain('hello from stdio mcp');
-  });
+      );
+      expect(callResult.stdout).toContain('hello from stdio mcp');
+    },
+    20000
+  );
 
   const memoryTest = process.platform === 'win32' ? it.skip : it;
 

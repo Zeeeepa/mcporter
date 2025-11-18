@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ServerDefinition } from '../src/config.js';
-import {
-  buildLinearDocumentsTool,
-  cliModulePromise,
-  linearDefinition,
-  stripAnsi,
-} from './fixtures/cli-list-fixtures.js';
+import { stripAnsi } from './fixtures/ansi.js';
+import { buildLinearDocumentsTool, cliModulePromise, linearDefinition } from './fixtures/cli-list-fixtures.js';
 
 describe('CLI list formatting', () => {
   it('prints detailed usage for single server listings', async () => {

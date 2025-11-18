@@ -1,19 +1,35 @@
 import { splitCommandLine } from '../adhoc-server.js';
-import { looksLikeHttpUrl, normalizeHttpUrlCandidate } from '../http-utils.js';
+import { normalizeHttpUrlCandidate } from '../http-utils.js';
 import type { CommandInput } from './types.js';
 
 export function inferNameFromCommand(command: CommandInput): string | undefined {
   if (typeof command === 'string') {
-    if (looksLikeHttpUrl(command)) {
-      const normalized = normalizeHttpUrlCandidate(command) ?? command;
+    const normalizedHttp = normalizeHttpUrlCandidate(command);
+    if (normalizedHttp) {
       try {
-        const url = new URL(normalized);
+        const url = new URL(normalizedHttp);
+        const segments = url.hostname.split('.').filter(Boolean);
+        for (const segment of segments) {
+          const lowered = segment.toLowerCase();
+          if (lowered === 'www' || lowered === 'api' || lowered === 'mcp') {
+            continue;
+          }
+          const slug = slugify(segment);
+          if (slug) {
+            return slug;
+          }
+        }
+        const fallback = slugify(segments[0] ?? url.hostname);
+        if (fallback) {
+          return fallback;
+        }
         const derived = deriveNameFromUrl(url);
-        if (derived) {
-          return derived;
+        const derivedSlug = derived ? slugify(derived) : undefined;
+        if (derivedSlug) {
+          return derivedSlug;
         }
       } catch {
-        // ignore parse failures; fall through to token heuristic
+        // ignore invalid URL; fall through to token logic
       }
     }
     const trimmed = command.trim();
@@ -52,6 +68,10 @@ export function inferNameFromCommand(command: CommandInput): string | undefined 
 }
 
 export function normalizeCommandInput(value: string): CommandInput {
+  const httpCandidate = normalizeHttpUrlCandidate(value);
+  if (httpCandidate) {
+    return httpCandidate;
+  }
   if (looksLikeInlineCommand(value)) {
     return parseInlineCommand(value);
   }

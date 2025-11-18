@@ -241,10 +241,16 @@ describeGenerateCli('generateCli', () => {
     const derivedUrl = new URL(baseUrl.toString());
     derivedUrl.hostname = 'localhost';
     const altOutput = path.join(tmpDir, 'integration-alt.ts');
+    const inlineServerDefinition = JSON.stringify({
+      name: 'integration',
+      description: 'Test integration server',
+      command: derivedUrl.toString(),
+      tokenCacheDir: path.join(tmpDir, 'schema-cache'),
+    });
     await new Promise<void>((resolve, reject) => {
       exec.execFile(
         'node',
-        ['dist/cli.js', 'generate-cli', '--command', derivedUrl.toString(), '--output', altOutput],
+        ['dist/cli.js', 'generate-cli', '--server', inlineServerDefinition, '--output', altOutput],
         execOptions(),
         (error) => {
           if (error) {
@@ -257,7 +263,7 @@ describeGenerateCli('generateCli', () => {
     });
     const altContent = await fs.readFile(altOutput, 'utf8');
     expect(altContent).toContain('const embeddedServer =');
-    expect(altContent).toContain('"description": "integration"');
+    expect(altContent).toContain('const embeddedDescription = "Test integration server"');
 
     const altMetadata = await readCliMetadata(altOutput);
     expect(altMetadata.artifact.kind).toBe('template');

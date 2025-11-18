@@ -172,10 +172,13 @@ export function parseGenerateFlags(args: string[]): GenerateFlags {
 }
 
 function normalizeCommandInput(value: string): CommandInput {
-  if (/^https?:\/\//i.test(value) || looksLikeHttpUrl(value)) {
-    const split = splitHttpToolSelector(value);
-    const target = split?.baseUrl ?? normalizeHttpUrlCandidate(value) ?? value;
-    return target;
+  const httpCandidate = normalizeHttpUrlCandidate(value);
+  if (httpCandidate) {
+    const selector = splitHttpToolSelector(httpCandidate);
+    if (selector) {
+      return selector.baseUrl;
+    }
+    return httpCandidate;
   }
   if (looksLikeInlineCommand(value)) {
     return parseInlineCommand(value);
