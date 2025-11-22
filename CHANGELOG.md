@@ -1,7 +1,11 @@
 # Changelog
 
 ## [Unreleased]
-- Nothing yet.
+### Runtime & CLI
+- Pinned `@modelcontextprotocol/sdk` to `~1.21.2` because 1.22.0 triggers an MCP internal error (`Cannot read properties of undefined (reading 'typeName')`) when `generate-cli --compile` talks to inline STDIO servers; upstream fix pending.
+
+### Runtime
+- `listTools` now follows SDK pagination, looping through `nextCursor` so long catalogs return complete tool lists.
 
 ## [0.6.3] - 2025-11-22
 

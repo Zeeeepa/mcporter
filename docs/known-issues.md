@@ -20,6 +20,11 @@ This file tracks limitations that users regularly run into. Most of these requir
 - Workarounds: inspect the server’s README / manual docs for output details, or wrap the tool via `createServerProxy` and handle the raw envelope manually.
 - Potential improvement: allow user-provided schema overrides (e.g., `mcporter config patch`, CLI flag to load schema JSON) so we can fill gaps on a per-tool basis.
 
+## MCP SDK 1.22.0 inline-stdio regression
+- Upgrading `@modelcontextprotocol/sdk` to 1.22.0 causes `mcporter generate-cli --compile` (and direct runtime `listTools`) to fail against inline STDIO servers with `MCP error -32603: Cannot read properties of undefined (reading 'typeName')`.
+- Repro: `pnpm mcporter generate-cli "node mock-stdio.mjs" --compile /tmp/inline-cli --runtime bun` using the inline stdio harness in `tests/cli-generate-cli.integration.test.ts`.
+- Status: reproduced locally; pinned the SDK to `~1.21.2` until upstream ships a fix.
+
 ## Next Steps
 - Implement true scope negotiation (read discovery metadata, allow `--oauth-scope`).
 - Keep lobbying providers for spec-compliant OAuth behavior.
