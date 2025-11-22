@@ -2,6 +2,8 @@
 
 > **Runner note:** From the repo root run `export MCP_RUNNER="$PWD/runner"` and use `$MCP_RUNNER <command>` for every shell command listed below unless the step explicitly says otherwise. This keeps the guardrails active even when the checklist jumps between directories.
 
+> **Helper script:** You can run `./scripts/release.sh <phase>` (gates | artifacts | publish | smoke | tag | all) to execute the steps below with the runner by default. It stops on first error; rerun the next phase after fixing issues.
+
 > **No-warning policy:** Every command below must finish without warnings (Biome, Oxlint, tsgo, Vitest, npm pack, etc.). Fix issues before continuing; releases cannot ship with outstanding warnings.
 
 1. Update version in package.json and src/runtime.ts.
