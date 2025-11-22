@@ -4,7 +4,7 @@
 
 ## [0.6.3] - 2025-11-22
 ### Runtime & CLI
-- Pinned `@modelcontextprotocol/sdk` to `~1.21.2` because 1.22.0 triggers an MCP internal error (`Cannot read properties of undefined (reading 'typeName')`) when `generate-cli --compile` talks to inline STDIO servers; upstream fix pending.
+- Updated to `@modelcontextprotocol/sdk` 1.22.0; inline stdio test server now uses Zod schemas to remain compatible with the SDK’s JSON Schema conversion path.
 
 ### Runtime
 - `listTools` now follows SDK pagination, looping through `nextCursor` so long catalogs return complete tool lists.
