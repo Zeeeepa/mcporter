@@ -154,13 +154,22 @@ class McpRuntime implements Runtime {
       skipCache: !autoAuthorize,
     });
     try {
-      const response = await context.client.listTools({ server: {} });
-      return (response.tools ?? []).map((tool) => ({
-        name: tool.name,
-        description: tool.description ?? undefined,
-        inputSchema: options.includeSchema ? tool.inputSchema : undefined,
-        outputSchema: options.includeSchema ? tool.outputSchema : undefined,
-      }));
+      const tools: ServerToolInfo[] = [];
+      let cursor: string | undefined;
+      do {
+        const response = await context.client.listTools(cursor ? { cursor } : undefined);
+        tools.push(
+          ...(response.tools ?? []).map((tool) => ({
+            name: tool.name,
+            description: tool.description ?? undefined,
+            inputSchema: options.includeSchema ? tool.inputSchema : undefined,
+            outputSchema: options.includeSchema ? tool.outputSchema : undefined,
+          }))
+        );
+        cursor = response.nextCursor ?? undefined;
+      } while (cursor);
+
+      return tools;
     } catch (error) {
       // Keep-alive STDIO transports often die when Chrome closes; drop the cached client
       // so the next call spins up a fresh process instead of reusing the broken handle.
