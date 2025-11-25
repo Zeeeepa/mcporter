@@ -1,4 +1,4 @@
-# MCPorter 🧳
+# MCPorter 🧳 - Call MCPs from TypeScript or package them as a CLI (mcporter.dev)
 _TypeScript runtime, CLI, and code-generation toolkit for the Model Context Protocol._
 
 MCPorter helps you lean into the "code execution" workflows highlighted in Anthropic's **Code Execution with MCP** guidance: discover the MCP servers already configured on your system, call them directly, compose richer automations in TypeScript, and mint single-purpose CLIs when you need to share a tool. All of that works out of the box -- no boilerplate, no schema spelunking.
