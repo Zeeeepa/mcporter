@@ -32,10 +32,13 @@
     },
     "linear": {
       "description": "Hosted Linear MCP; exposes issue search, create, and workflow tooling.",
-      "baseUrl": "https://mcp.linear.app/mcp",
-      "headers": {
-        "Authorization": "Bearer ${LINEAR_API_KEY}"
-      }
+      "baseUrl": "https://mcp.linear.app/sse",
+      "auth": "oauth"
+    },
+    "notion": {
+      "description": "Notion MCP; search, read, create, and update Notion pages and databases.",
+      "baseUrl": "https://mcp.notion.com/mcp",
+      "auth": "oauth"
     },
     "next-devtools": {
       "description": "Next.js dev server introspection (project metadata, logs, page insights).",
