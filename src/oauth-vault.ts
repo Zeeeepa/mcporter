@@ -26,15 +26,23 @@ interface VaultFile {
 }
 
 async function readVault(): Promise<VaultFile> {
+  let shouldRewrite = false;
   try {
     const existing = await readJsonFile<VaultFile>(VAULT_PATH);
     if (existing && existing.version === 1 && existing.entries && typeof existing.entries === 'object') {
       return existing;
     }
+    // Unexpected shape; rewrite.
+    shouldRewrite = true;
   } catch {
     // Corrupt or unreadable vault; reset to empty.
+    shouldRewrite = true;
   }
-  return { version: 1, entries: {} };
+  const empty: VaultFile = { version: 1, entries: {} };
+  if (shouldRewrite) {
+    await writeVault(empty);
+  }
+  return empty;
 }
 
 async function writeVault(contents: VaultFile): Promise<void> {
