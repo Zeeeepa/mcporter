@@ -28,7 +28,10 @@ class DirectoryPersistence implements OAuthPersistence {
   private readonly codeVerifierPath: string;
   private readonly statePath: string;
 
-  constructor(private readonly root: string, private readonly logger?: Logger) {
+  constructor(
+    private readonly root: string,
+    private readonly logger?: Logger
+  ) {
     this.tokenPath = path.join(root, 'tokens.json');
     this.clientInfoPath = path.join(root, 'client.json');
     this.codeVerifierPath = path.join(root, 'code_verifier.txt');
@@ -89,16 +92,26 @@ class DirectoryPersistence implements OAuthPersistence {
 
   async clear(scope: OAuthClearScope): Promise<void> {
     const files: string[] = [];
-    if (scope === 'all' || scope === 'tokens') files.push(this.tokenPath);
-    if (scope === 'all' || scope === 'client') files.push(this.clientInfoPath);
-    if (scope === 'all' || scope === 'verifier') files.push(this.codeVerifierPath);
-    if (scope === 'all' || scope === 'state') files.push(this.statePath);
+    if (scope === 'all' || scope === 'tokens') {
+      files.push(this.tokenPath);
+    }
+    if (scope === 'all' || scope === 'client') {
+      files.push(this.clientInfoPath);
+    }
+    if (scope === 'all' || scope === 'verifier') {
+      files.push(this.codeVerifierPath);
+    }
+    if (scope === 'all' || scope === 'state') {
+      files.push(this.statePath);
+    }
     await Promise.all(
       files.map(async (file) => {
         try {
           await fs.unlink(file);
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error;
+          }
         }
       })
     );
@@ -159,7 +172,9 @@ class CompositePersistence implements OAuthPersistence {
   async readTokens(): Promise<OAuthTokens | undefined> {
     for (const store of this.stores) {
       const result = await store.readTokens();
-      if (result) return result;
+      if (result) {
+        return result;
+      }
     }
     return undefined;
   }
@@ -171,7 +186,9 @@ class CompositePersistence implements OAuthPersistence {
   async readClientInfo(): Promise<OAuthClientInformationMixed | undefined> {
     for (const store of this.stores) {
       const result = await store.readClientInfo();
-      if (result) return result;
+      if (result) {
+        return result;
+      }
     }
     return undefined;
   }
@@ -183,7 +200,9 @@ class CompositePersistence implements OAuthPersistence {
   async readCodeVerifier(): Promise<string | undefined> {
     for (const store of this.stores) {
       const result = await store.readCodeVerifier();
-      if (result) return result;
+      if (result) {
+        return result;
+      }
     }
     return undefined;
   }
@@ -195,7 +214,9 @@ class CompositePersistence implements OAuthPersistence {
   async readState(): Promise<string | undefined> {
     for (const store of this.stores) {
       const result = await store.readState();
-      if (result) return result;
+      if (result) {
+        return result;
+      }
     }
     return undefined;
   }
@@ -209,10 +230,7 @@ class CompositePersistence implements OAuthPersistence {
   }
 }
 
-export async function buildOAuthPersistence(
-  definition: ServerDefinition,
-  logger?: Logger
-): Promise<OAuthPersistence> {
+export async function buildOAuthPersistence(definition: ServerDefinition, logger?: Logger): Promise<OAuthPersistence> {
   const vault = new VaultPersistence(definition);
   const stores: OAuthPersistence[] = [vault];
 
@@ -232,9 +250,15 @@ export async function buildOAuthPersistence(
       if (legacyTokens) {
         await vault.saveTokens(legacyTokens);
       }
-      if (legacyClient) await vault.saveClientInfo(legacyClient);
-      if (legacyVerifier) await vault.saveCodeVerifier(legacyVerifier);
-      if (legacyState) await vault.saveState(legacyState);
+      if (legacyClient) {
+        await vault.saveClientInfo(legacyClient);
+      }
+      if (legacyVerifier) {
+        await vault.saveCodeVerifier(legacyVerifier);
+      }
+      if (legacyState) {
+        await vault.saveState(legacyState);
+      }
       logger?.info?.(`Migrated legacy OAuth cache for '${definition.name}' into vault.`);
     }
   }
@@ -256,6 +280,10 @@ export async function clearOAuthCaches(
     await legacy.clear(scope);
   }
 
+  if (definition.tokenCacheDir) {
+    await fs.rm(definition.tokenCacheDir, { recursive: true, force: true });
+  }
+
   // Known provider-specific legacy paths (gmail server writes to ~/.gmail-mcp/credentials.json).
   const legacyFiles: string[] = [];
   if (definition.name.toLowerCase() === 'gmail') {
@@ -267,13 +295,18 @@ export async function clearOAuthCaches(
         await fs.unlink(file);
         logger?.info?.(`Cleared legacy OAuth cache file ${file}`);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error;
+        }
       }
     })
   );
 }
 
-export async function readCachedAccessToken(definition: ServerDefinition, logger?: Logger): Promise<string | undefined> {
+export async function readCachedAccessToken(
+  definition: ServerDefinition,
+  logger?: Logger
+): Promise<string | undefined> {
   const persistence = await buildOAuthPersistence(definition, logger);
   const tokens = await persistence.readTokens();
   if (tokens && typeof tokens.access_token === 'string' && tokens.access_token.trim().length > 0) {

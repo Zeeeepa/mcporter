@@ -7,11 +7,11 @@ import type { ServerDefinition } from '../config.js';
 import { resolveEnvValue, withEnvOverrides } from '../env.js';
 import type { Logger } from '../logging.js';
 import { createOAuthSession, type OAuthSession } from '../oauth.js';
+import { readCachedAccessToken } from '../oauth-persistence.js';
 import { materializeHeaders } from '../runtime-header-utils.js';
 import { isUnauthorizedError, maybeEnableOAuth } from '../runtime-oauth-support.js';
 import { closeTransportAndWait } from '../runtime-process-utils.js';
 import { connectWithAuth, OAuthTimeoutError } from './oauth.js';
-import { readCachedAccessToken } from '../oauth-persistence.js';
 import { resolveCommandArgument, resolveCommandArguments } from './utils.js';
 
 const STDIO_TRACE_ENABLED = process.env.MCPORTER_STDIO_TRACE === '1';

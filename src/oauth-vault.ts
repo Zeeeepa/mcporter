@@ -85,7 +85,10 @@ export async function saveVaultEntry(definition: ServerDefinition, patch: Partia
   await writeVault(vault);
 }
 
-export async function clearVaultEntry(definition: ServerDefinition, scope: 'all' | 'tokens' | 'client' | 'verifier' | 'state'): Promise<void> {
+export async function clearVaultEntry(
+  definition: ServerDefinition,
+  scope: 'all' | 'tokens' | 'client' | 'verifier' | 'state'
+): Promise<void> {
   const vault = await readVault();
   const key = vaultKeyForDefinition(definition);
   const existing = vault.entries[key];
@@ -96,10 +99,18 @@ export async function clearVaultEntry(definition: ServerDefinition, scope: 'all'
     delete vault.entries[key];
   } else {
     const updated: VaultEntry = { ...existing };
-    if (scope === 'tokens') delete updated.tokens;
-    if (scope === 'client') delete updated.clientInfo;
-    if (scope === 'verifier') delete updated.codeVerifier;
-    if (scope === 'state') delete updated.state;
+    if (scope === 'tokens') {
+      delete updated.tokens;
+    }
+    if (scope === 'client') {
+      delete updated.clientInfo;
+    }
+    if (scope === 'verifier') {
+      delete updated.codeVerifier;
+    }
+    if (scope === 'state') {
+      delete updated.state;
+    }
     updated.updatedAt = new Date().toISOString();
     vault.entries[key] = updated;
   }

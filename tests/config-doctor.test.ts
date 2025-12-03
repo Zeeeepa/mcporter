@@ -41,6 +41,5 @@ describe('config doctor', () => {
     logSpy.mockRestore();
 
     expect(output).toContain('has a non-absolute working directory');
-    expect(output).toContain('enables OAuth but lacks a token cache directory');
   });
 });

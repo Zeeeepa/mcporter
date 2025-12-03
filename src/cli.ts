@@ -1,6 +1,6 @@
 #!/usr/bin/env node
+import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
-
 import type { EphemeralServerSpec } from './cli/adhoc-server.js';
 import { printCallHelp, handleCall as runHandleCall } from './cli/call-command.js';
 import { buildGlobalContext } from './cli/cli-factory.js';
@@ -22,7 +22,6 @@ import { DEBUG_HANG, dumpActiveHandles, terminateChildProcesses } from './cli/ru
 import { boldText, dimText, extraDimText, supportsAnsiColor } from './cli/terminal.js';
 import { resolveConfigPath } from './config.js';
 import type { ServerDefinition } from './config-schema.js';
-import { spawn } from 'node:child_process';
 import { DaemonClient } from './daemon/client.js';
 import { createKeepAliveRuntime } from './daemon/runtime-wrapper.js';
 import { analyzeConnectionError } from './error-classifier.js';
@@ -524,7 +523,7 @@ async function invokeAuthCommand(runtimeOptions: Parameters<typeof createRuntime
 }
 
 async function runStdioAuth(definition: ServerDefinition): Promise<void> {
-  const authArgs = [...(definition.command.kind === 'stdio' ? definition.command.args ?? [] : [])];
+  const authArgs = [...(definition.command.kind === 'stdio' ? (definition.command.args ?? []) : [])];
   if (definition.oauthCommand) {
     authArgs.push(...definition.oauthCommand.args);
   }

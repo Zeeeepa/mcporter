@@ -21,7 +21,7 @@ describe('maybeEnableOAuth', () => {
     const updated = maybeEnableOAuth(baseDefinition, logger as never);
     expect(updated).toBeDefined();
     expect(updated?.auth).toBe('oauth');
-    expect(updated?.tokenCacheDir).toContain('adhoc-server');
+    expect(updated?.tokenCacheDir).toBeUndefined();
     expect(logger.info).toHaveBeenCalled();
   });
 
