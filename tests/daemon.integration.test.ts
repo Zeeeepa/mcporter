@@ -12,6 +12,7 @@ const MCP_SERVER_MODULE = pathToFileURL(testRequire.resolve('@modelcontextprotoc
 const STDIO_SERVER_MODULE = pathToFileURL(testRequire.resolve('@modelcontextprotocol/sdk/server/stdio.js')).href;
 const ZOD_MODULE = pathToFileURL(testRequire.resolve('zod')).href;
 const describeDaemon = process.platform === 'win32' ? describe.skip : describe;
+const PNPM_COMMAND = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 async function readFileWithRetries(filePath: string, retries = 20, delayMs = 100): Promise<string> {
   let lastError: unknown;
@@ -34,7 +35,7 @@ async function ensureDistBuilt(): Promise<void> {
     await fs.access(CLI_ENTRY);
   } catch {
     await new Promise<void>((resolve, reject) => {
-      execFile('pnpm', ['build'], { cwd: process.cwd(), env: process.env }, (error) => {
+      execFile(PNPM_COMMAND, ['build'], { cwd: process.cwd(), env: process.env }, (error) => {
         if (error) {
           reject(error);
           return;

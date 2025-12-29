@@ -7,13 +7,14 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const CLI_ENTRY = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+const PNPM_COMMAND = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 async function ensureDistBuilt(): Promise<void> {
   try {
     await fs.access(CLI_ENTRY);
   } catch {
     await new Promise<void>((resolve, reject) => {
-      execFile('pnpm', ['build'], { cwd: process.cwd(), env: process.env }, (error) => {
+      execFile(PNPM_COMMAND, ['build'], { cwd: process.cwd(), env: process.env }, (error) => {
         if (error) {
           reject(error);
           return;
